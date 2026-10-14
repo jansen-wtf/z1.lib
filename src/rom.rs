@@ -60,7 +60,9 @@ impl Rom {
         if &data[..4] != b"NES\x1a" {
             return Err(RomError::Header);
         }
-        let sum = sha1_smol::Sha1::from(&data[HEADER_LEN..]).digest().to_string();
+        let sum = sha1_smol::Sha1::from(&data[HEADER_LEN..])
+            .digest()
+            .to_string();
         if sum != REV1_BODY_SHA1 {
             return Err(RomError::Checksum(sum));
         }
@@ -90,12 +92,18 @@ mod tests {
 
     #[test]
     fn rejects_wrong_size() {
-        assert!(matches!(Rom::from_bytes(vec![0; 100]), Err(RomError::Size(100))));
+        assert!(matches!(
+            Rom::from_bytes(vec![0; 100]),
+            Err(RomError::Size(100))
+        ));
     }
 
     #[test]
     fn rejects_missing_header() {
-        assert!(matches!(Rom::from_bytes(vec![0; FILE_LEN]), Err(RomError::Header)));
+        assert!(matches!(
+            Rom::from_bytes(vec![0; FILE_LEN]),
+            Err(RomError::Header)
+        ));
     }
 
     #[test]
