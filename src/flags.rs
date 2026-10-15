@@ -16,7 +16,7 @@ pub enum Check {
 }
 
 impl Check {
-    fn from_digit(digit: u32) -> Check {
+    pub fn from_digit(digit: u32) -> Check {
         match digit {
             1 => Check::On,
             2 => Check::Random,
