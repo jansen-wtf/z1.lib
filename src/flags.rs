@@ -247,6 +247,17 @@ impl Flags {
         flags
     }
 
+    /// The flag string as the form shows it after reading `text`: re-encoded
+    /// once reading it changed any option, as typed otherwise.
+    pub fn displayed(text: &str) -> String {
+        let flags = Flags::parse(text);
+        if flags == Flags::default() {
+            text.split_whitespace().next().unwrap_or("").to_string()
+        } else {
+            flags.to_string()
+        }
+    }
+
     pub fn combo(&self, index: usize) -> u32 {
         self.combos[index]
     }
@@ -308,6 +319,12 @@ mod tests {
         assert_eq!(flags.to_string(), "3");
         flags.checks[check::UPDATE_WHISTLE] = Check::On;
         assert_eq!(Flags::parse(&flags.to_string()), flags);
+    }
+
+    #[test]
+    fn displayed_text_is_reencoded_unless_all_off() {
+        assert_eq!(Flags::displayed("00"), "00");
+        assert_eq!(Flags::displayed(" 07 x"), "4");
     }
 
     #[test]
