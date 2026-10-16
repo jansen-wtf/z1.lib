@@ -120,7 +120,21 @@ bottom right.
 the outer ring table 0's.
 
 **Cave doors.** The visible entrance is square `0C` (tiles `F3 24 F3 24`)
-in the column table 0 names.
+in the column table 0 names. Hidden entrances sit on squares of their own,
+measured with `node secret.js`, which marks every secret as found (RAM
+`$067F` + screen, bit 7) and compares the screen with its layout:
+
+| Square | Hides | Opened by |
+|---|---|---|
+| `27` | wall, turns into a door | bomb |
+| `28` | bush, turns into stairs | candle |
+| `26` | rock, stairs under it | pushing |
+| `29` | grave, stairs under it | pushing |
+| `0F` | foot of the waterfall | walking in |
+| `05` | the lake of level 7 | recorder |
+
+Stairs under an armos are listed at `0x10CC2` (seven screens, the first
+one holds the armos item) with their x positions at `0x10CC9`.
 
 While the game runs, the overworld tables from `0x18410` on sit in
 battery RAM from `$687E`; the cave item table `0x18610` is at `$6A7E`.
@@ -131,3 +145,4 @@ battery RAM from `$687E`; the cave item table `0x18610` is at `$6A7E`.
 |---|---|
 | `$EB` | current overworld screen |
 | `$70`, `$84` | Link's x and y |
+| `$067F` + screen | overworld screen flags; bit 7: secret found |
