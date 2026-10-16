@@ -4,9 +4,11 @@
 //! were measured, in `docs/rom-graphics.md`.
 
 mod overworld;
+pub mod pictures;
 mod png;
 
 pub use overworld::{Screen, decode_screen};
+pub use pictures::picture;
 
 /// NES colors, as most emulators show them.
 pub const NES: [u32; 64] = [
@@ -90,13 +92,37 @@ fn background_tile(tile: u8) -> usize {
     }
 }
 
-/// Sprite tile `t` (the top of an 8 x 16 pair) for the overworld.
+/// Sprite tile `t` (the top of an 8 x 16 pair) on the overworld.
 fn sprite_tile(tile: u8) -> usize {
     let t = usize::from(tile);
-    if t < 0x70 {
-        0x808f + 16 * t
-    } else {
-        0x4dc4 + 16 * (t - 0x70)
+    match t {
+        0..0x70 => 0x808f + 16 * t,
+        0x70..0x8e => 0x4dc4 + 16 * (t - 0x70),
+        _ => 0xd16b + 16 * (t - 0x8e),
+    }
+}
+
+/// Draws one 8 x 16 sprite with its top left at `x`, `y`.
+fn draw_sprite(
+    rom: &[u8],
+    image: &mut Image,
+    tile: u8,
+    palette: usize,
+    flip: bool,
+    x: i32,
+    y: i32,
+) {
+    let at = sprite_tile(tile);
+    for row in 0..16 {
+        let tile_at = at + (row / 8) * 16;
+        for col in 0..8 {
+            let sx = if flip { 7 - col } else { col };
+            let v = tile_pixel(rom, tile_at, sx, row % 8);
+            if v != 0 {
+                let color = palette_color(rom, SPRITE_PALETTES, palette, v);
+                image.put(x + col as i32, y + row as i32, color);
+            }
+        }
     }
 }
 
@@ -173,18 +199,7 @@ pub fn draw_item(rom: &[u8], image: &mut Image, item: i32, cx: i32, y: i32) {
         return;
     };
     for &(dx, tile, palette, flip) in sprites.iter() {
-        let at = sprite_tile(tile);
-        for row in 0..16 {
-            let tile_at = at + (row / 8) * 16;
-            for x in 0..8 {
-                let sx = if flip { 7 - x } else { x };
-                let v = tile_pixel(rom, tile_at, sx, row % 8);
-                if v != 0 {
-                    let color = palette_color(rom, SPRITE_PALETTES, palette, v);
-                    image.put(cx - 4 + dx + x as i32, y + row as i32, color);
-                }
-            }
-        }
+        draw_sprite(rom, image, tile, palette, flip, cx - 4 + dx, y);
     }
 }
 
