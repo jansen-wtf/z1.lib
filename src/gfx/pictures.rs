@@ -5,7 +5,8 @@
 //! - `screen:<n>`: overworld screen `n`
 //! - `armos`: the screen of the armos item, its statue framed
 //! - `coast`: the coast screen with the item that waits there
-//! - `cave:<item>,...`: the old man between his fires, offering items
+//! - `cave` or `cave:<item>,...`: the old man between his fires, offering
+//!   items
 //! - `items:<item>,...`: items in a row
 
 use super::{Image, NES, decode_screen, draw_item, draw_sprite, paint_screen};
@@ -59,6 +60,7 @@ pub fn picture(rom: &[u8], spec: &str) -> Option<Image> {
             draw_item(rom, &mut image, item, COAST_X, COAST_Y);
             Some(image)
         }
+        "cave" if arg.is_empty() => Some(cave_picture(rom, &[])),
         "cave" => Some(cave_picture(rom, &numbers()?)),
         "items" => Some(items_picture(rom, &numbers()?)),
         _ => None,

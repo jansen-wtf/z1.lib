@@ -112,6 +112,20 @@ fn draw_sprite(
     x: i32,
     y: i32,
 ) {
+    let colors = [1, 2, 3].map(|v| palette_color(rom, SPRITE_PALETTES, palette, v));
+    draw_sprite_in(rom, image, tile, colors, flip, x, y);
+}
+
+/// Draws one 8 x 16 sprite in the given colors 1-3.
+fn draw_sprite_in(
+    rom: &[u8],
+    image: &mut Image,
+    tile: u8,
+    colors: [u32; 3],
+    flip: bool,
+    x: i32,
+    y: i32,
+) {
     let at = sprite_tile(tile);
     for row in 0..16 {
         let tile_at = at + (row / 8) * 16;
@@ -119,8 +133,7 @@ fn draw_sprite(
             let sx = if flip { 7 - col } else { col };
             let v = tile_pixel(rom, tile_at, sx, row % 8);
             if v != 0 {
-                let color = palette_color(rom, SPRITE_PALETTES, palette, v);
-                image.put(x + col as i32, y + row as i32, color);
+                image.put(x + col as i32, y + row as i32, colors[v - 1]);
             }
         }
     }
@@ -201,6 +214,38 @@ pub fn draw_item(rom: &[u8], image: &mut Image, item: i32, cx: i32, y: i32) {
     for &(dx, tile, palette, flip) in sprites.iter() {
         draw_sprite(rom, image, tile, palette, flip, cx - 4 + dx, y);
     }
+}
+
+/// The starting tunic color, an NES color.
+const START_TUNIC: usize = 41623;
+
+/// Link facing down (tile 5A, and 08 mirrored), as he stands on the start
+/// screen, in his tunic color or the one given.
+pub fn link_picture(rom: &[u8], tunic: Option<u8>) -> Image {
+    let tunic = tunic.unwrap_or(rom[START_TUNIC]);
+    let colors = [
+        NES[usize::from(tunic & 0x3f)],
+        palette_color(rom, SPRITE_PALETTES, 0, 2),
+        palette_color(rom, SPRITE_PALETTES, 0, 3),
+    ];
+    let mut image = Image::new(24, 20, 0x000000);
+    draw_sprite_in(rom, &mut image, 0x5a, colors, false, 4, 2);
+    draw_sprite_in(rom, &mut image, 0x08, colors, true, 12, 2);
+    image
+}
+
+/// The status bar's heart (background tile F2) in an NES color.
+pub fn heart_picture(rom: &[u8], color: u8) -> Image {
+    let mut image = Image::new(16, 12, 0x000000);
+    let at = background_tile(0xf2);
+    for y in 0..8 {
+        for x in 0..8 {
+            if tile_pixel(rom, at, x, y) != 0 {
+                image.put(4 + x as i32, 2 + y as i32, NES[usize::from(color & 0x3f)]);
+            }
+        }
+    }
+    image
 }
 
 /// The game's text tile for a character; unknown characters are blanks.
