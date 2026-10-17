@@ -1,0 +1,793 @@
+//! Dungeon rooms as the game draws them: walls and doors, the room's
+//! layout of 12 columns of 7 squares, its items and its monsters. The
+//! addresses are documented, with how they were measured, in
+//! `docs/rom-graphics.md`; `tools/emu/verify-dungeons.js` checks the
+//! background against the running game.
+
+use super::{Image, NES, tile_pixel};
+
+/// 10 pointers into the column heap, in bank 5.
+const COLUMN_DIRECTORY: usize = 0x16714;
+const BANK5: usize = 0x14010 - 0x8000;
+const BANK3: usize = 0xc010 - 0x8000;
+/// 12 column ids per room layout.
+const LAYOUTS: usize = 0x160ee;
+/// First tile of each square.
+const SQUARES: usize = 0x16728;
+/// The left wall, 3 columns of 10 tiles, and the top wall, 12 columns of
+/// 3 tiles (4 bytes apart); the other walls mirror them.
+const WALL_SIDE: usize = 0x15fb0;
+const WALL_TOP: usize = 0x15fce;
+/// Five looks of 12 tiles per side: open, locked, shutter, wall, bombed.
+const DOORS_EAST: usize = 0x15ffe;
+const DOORS_WEST: usize = 0x1603a;
+const DOORS_SOUTH: usize = 0x16076;
+const DOORS_NORTH: usize = 0x160b2;
+/// The room tables A-F, 0x80 bytes each, per level group and quest.
+pub const GRID: usize = 0x18710;
+/// Level blocks: palettes (background, then sprites), monster counts at
+/// 0x21, item positions at 0x26.
+const LEVEL_BLOCKS: usize = 0x19313;
+const LEVEL_BLOCK_SIZE: usize = 0xfc;
+/// Per level, bank 3 pointers to the sprites loaded at tile 0x9E
+/// (monsters) and 0xC0 (bosses).
+const MONSTER_SPRITES: usize = 0xc010;
+const BOSS_SPRITES: usize = 0xc024;
+/// Mixed monster groups 0x62-0x7F: pointers to 5 monster codes each.
+const MIXED_GROUPS: usize = 0x1474f;
+
+/// How a door type looks: the game's view, where a bomb wall is still a
+/// wall, or the map's, which shows it blown open.
+const DOOR_LOOK: [usize; 8] = [0, 3, 3, 3, 3, 1, 1, 2];
+const BOMBED: usize = 4;
+
+pub struct Room {
+    /// 22 rows of 32 tiles
+    pub tiles: [[u8; 32]; 22],
+    /// 11 rows of 16 squares, background palette per square
+    pub palettes: [[u8; 16]; 11],
+}
+
+/// Which room tables a level uses: levels 7-9 have their own, and the
+/// second quest has a set of both.
+pub fn tables(level: usize, second_quest: bool) -> usize {
+    (if second_quest { 0x600 } else { 0 }) + if level >= 7 { 0x300 } else { 0 }
+}
+
+/// Byte `room` of room table `t` (0 = A ... 5 = F).
+pub fn grid(rom: &[u8], tables: usize, t: usize, room: usize) -> u8 {
+    rom[GRID + tables + 0x80 * t + room]
+}
+
+fn level_block(level: usize) -> usize {
+    LEVEL_BLOCKS + LEVEL_BLOCK_SIZE * level
+}
+
+/// Like the overworld's, but a column is 7 squares, each byte a square in
+/// bits 0-3 repeated as often as bits 4-6 say, plus once.
+fn column(rom: &[u8], id: u8) -> [u8; 7] {
+    let d = COLUMN_DIRECTORY + 2 * usize::from(id >> 4);
+    let mut p = usize::from(rom[d]) + (usize::from(rom[d + 1]) << 8) + BANK5;
+    let mut starts = 0;
+    loop {
+        if rom[p] & 0x80 != 0 {
+            if starts == id & 15 {
+                break;
+            }
+            starts += 1;
+        }
+        p += 1;
+    }
+    let mut squares = [0; 7];
+    let mut n = 0;
+    while n < 7 {
+        let b = rom[p];
+        p += 1;
+        for _ in 0..=((b >> 4) & 7) {
+            if n < 7 {
+                squares[n] = b & 15;
+                n += 1;
+            }
+        }
+    }
+    squares
+}
+
+/// The tile mirrored horizontally (`h`) and vertically (`v`): the game keeps
+/// the mirrored wall tiles next to each other.
+fn mirror(t: u8, h: bool, v: bool) -> u8 {
+    match t {
+        0xb8..=0xdb if (t - 0xb8).is_multiple_of(4) => {
+            t + [0, 3, 1, 2][usize::from(h) | usize::from(v) << 1]
+        }
+        0xdc => t + u8::from(v),
+        0xde => t + u8::from(h),
+        0xe0 => t + u8::from(h != v),
+        _ => t,
+    }
+}
+
+/// Room `room` of `level` from the given room tables, as the game draws it
+/// (`map` false) or with bomb walls blown open (`map` true).
+pub fn decode_room(rom: &[u8], tables: usize, room: usize, map: bool) -> Room {
+    let a = grid(rom, tables, 0, room);
+    let b = grid(rom, tables, 1, room);
+    let d = grid(rom, tables, 3, room);
+    let mut tiles = [[0xf6u8; 32]; 22];
+    let mut quarter = |r: usize, c: usize, t: u8| {
+        tiles[r][c] = t;
+        tiles[r][31 - c] = mirror(t, true, false);
+        tiles[21 - r][c] = mirror(t, false, true);
+        tiles[21 - r][31 - c] = mirror(t, true, true);
+    };
+    for c in 0..3 {
+        for r in 0..10 {
+            quarter(1 + r, 1 + c, rom[WALL_SIDE + 10 * c + r]);
+        }
+    }
+    for c in 0..12 {
+        for r in 0..3 {
+            quarter(1 + r, 4 + c, rom[WALL_TOP + 4 * c + r]);
+        }
+    }
+    let layout = usize::from(d & 0x3f);
+    for c in 0..12 {
+        let squares = column(rom, rom[LAYOUTS + 12 * layout + c]);
+        for (r, &square) in squares.iter().enumerate() {
+            let first = rom[SQUARES + usize::from(square)];
+            // Below the dungeon tiles and among the last ones, a square is
+            // one tile four times.
+            let four = if !(0x70..0xf0).contains(&first) {
+                [first; 4]
+            } else {
+                [first, first + 1, first + 2, first + 3]
+            };
+            let (y, x) = (4 + 2 * r, 4 + 2 * c);
+            tiles[y][x] = four[0];
+            tiles[y + 1][x] = four[1];
+            tiles[y][x + 1] = four[2];
+            tiles[y + 1][x + 1] = four[3];
+        }
+    }
+    let look = |door: u8| match door {
+        4 if map => BOMBED,
+        _ => DOOR_LOOK[usize::from(door)],
+    };
+    let mut door = |table: usize, door: u8, place: &dyn Fn(usize) -> (usize, usize)| {
+        let at = table + 12 * look(door);
+        for i in 0..12 {
+            let (r, c) = place(i);
+            tiles[r][c] = rom[at + i];
+        }
+    };
+    door(DOORS_NORTH, a >> 5, &|i| (1 + i % 3, 14 + i / 3));
+    door(DOORS_SOUTH, (a >> 2) & 7, &|i| (18 + i % 3, 14 + i / 3));
+    let side = |c0: usize| move |i: usize| (9 + 2 * (i / 6) + i % 2, c0 + (i % 6) / 2);
+    door(DOORS_WEST, b >> 5, &side(1));
+    door(DOORS_EAST, (b >> 2) & 7, &side(28));
+    let mut palettes = [[a & 3; 16]; 11];
+    for row in palettes.iter_mut().take(9).skip(2) {
+        for p in row.iter_mut().take(14).skip(2) {
+            *p = b & 3;
+        }
+    }
+    Room { tiles, palettes }
+}
+
+/// Background tile `t` in a dungeon.
+fn background_tile(tile: u8) -> usize {
+    let t = usize::from(tile);
+    match t {
+        0..0x70 => 0x878f + 16 * t,
+        0x70..0xf2 => 0xc12b + 16 * (t - 0x70),
+        _ => 0x8e8f + 16 * (t - 0xf2),
+    }
+}
+
+/// Sprite tile `t` (the top of an 8 x 16 pair) in `level`.
+fn sprite_tile(rom: &[u8], level: usize, tile: u8) -> usize {
+    let t = usize::from(tile);
+    let pointer = |table: usize| {
+        let at = table + 2 * level;
+        usize::from(rom[at]) + (usize::from(rom[at + 1]) << 8) + BANK3
+    };
+    match t {
+        0..0x70 => 0x808f + 16 * t,
+        0x70..0x8e => 0x4dc4 + 16 * (t - 0x70),
+        0x8e..0x9e => 0xdccb + 16 * (t - 0x8e),
+        0x9e..0xc0 => pointer(MONSTER_SPRITES) + 16 * (t - 0x9e),
+        _ => pointer(BOSS_SPRITES) + 16 * (t - 0xc0),
+    }
+}
+
+fn color(rom: &[u8], level: usize, sprite: bool, palette: usize, index: usize) -> u32 {
+    let base = level_block(level) + if sprite { 16 } else { 0 };
+    let at = if index == 0 {
+        base
+    } else {
+        base + 4 * palette + index
+    };
+    NES[usize::from(rom[at] & 0x3f)]
+}
+
+/// Paints room `room` of `level`, 256 x 176 pixels, at `x0`, `y0`.
+pub fn paint_room(rom: &[u8], level: usize, room: &Room, image: &mut Image, x0: i32, y0: i32) {
+    for r in 0..22 {
+        for c in 0..32 {
+            let at = background_tile(room.tiles[r][c]);
+            let palette = usize::from(room.palettes[r / 2][c / 2]);
+            for y in 0..8 {
+                for x in 0..8 {
+                    let v = tile_pixel(rom, at, x, y);
+                    image.put(
+                        x0 + (8 * c + x) as i32,
+                        y0 + (8 * r + y) as i32,
+                        color(rom, level, false, palette, v),
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// One 8 x 16 sprite as the game puts it in OAM: `attr` holds the palette
+/// in bits 0-1 and the mirroring in bits 6 and 7.
+pub fn draw_sprite(
+    rom: &[u8],
+    level: usize,
+    image: &mut Image,
+    tile: u8,
+    attr: u8,
+    x: i32,
+    y: i32,
+) {
+    let at = sprite_tile(rom, level, tile & 0xfe);
+    let palette = usize::from(attr & 3);
+    for row in 0..16 {
+        let sy = if attr & 0x80 != 0 { 15 - row } else { row };
+        let tile_at = at + (sy / 8) * 16;
+        for col in 0..8 {
+            let sx = if attr & 0x40 != 0 { 7 - col } else { col };
+            let v = tile_pixel(rom, tile_at, sx, sy % 8);
+            if v != 0 {
+                image.put(
+                    x + col as i32,
+                    y + row as i32,
+                    color(rom, level, true, palette, v),
+                );
+            }
+        }
+    }
+}
+
+/// The text old men say, as the game writes it: bytes in the game's font,
+/// bit 7 ending the first line, bit 6 the second, both the text.
+pub fn draw_text_bytes(
+    rom: &[u8],
+    level: usize,
+    image: &mut Image,
+    bytes: &[u8],
+    x0: i32,
+    y0: i32,
+) {
+    let (mut x, mut y) = (x0, y0);
+    for &b in bytes {
+        // 0x24 and 0x25 are spaces; the game leaves the tile as it is.
+        let tile = b & 0x3f;
+        let at = background_tile(tile);
+        for row in 0..8 {
+            if tile == 0x24 || tile == 0x25 {
+                break;
+            }
+            for col in 0..8 {
+                let v = tile_pixel(rom, at, col, row);
+                if v != 0 {
+                    image.put(
+                        x + col as i32,
+                        y + row as i32,
+                        color(rom, level, false, 0, v),
+                    );
+                }
+            }
+        }
+        x += 8;
+        if b & 0xc0 != 0 {
+            x = x0;
+            y += 8;
+        }
+    }
+}
+
+/// Where the item of a room lies, on the 256 x 176 room: the level's four
+/// positions as `0xXY` in 16-pixel steps, chosen by table F bits 4-5.
+pub fn item_position(rom: &[u8], level: usize, f: u8) -> (i32, i32) {
+    let p = rom[level_block(level) + 0x26 + usize::from((f >> 4) & 3)];
+    (i32::from(p & 0xf0), i32::from(p & 0x0f) * 16 - 64)
+}
+
+/// How many monsters a room's table C bits 6-7 ask for in `level`.
+pub fn monster_count(rom: &[u8], level: usize, c: u8) -> usize {
+    usize::from(rom[level_block(level) + 0x21 + usize::from(c >> 6)])
+}
+
+/// The monster codes of a room: a single one, or the five of a mixed group.
+pub fn monster_codes(rom: &[u8], code: u8) -> Vec<u8> {
+    if code < 0x62 {
+        return vec![code];
+    }
+    let at = MIXED_GROUPS + 2 * usize::from(code - 0x62);
+    let p = usize::from(rom[at]) + (usize::from(rom[at + 1]) << 8) + BANK5;
+    rom[p..p + 5].to_vec()
+}
+
+/// Item id -> sprites as the game draws it in a dungeon: x offset from the
+/// item's position, tile, OAM attributes. Measured with `tools/emu`.
+const ITEM_SPRITES: [&[(i32, u8, u8)]; 32] = [
+    &[(4, 0x34, 1)],
+    &[(4, 0x20, 0)],
+    &[(4, 0x20, 1)],
+    &[],
+    &[(4, 0x22, 2)],
+    &[(4, 0x24, 2)],
+    &[(4, 0x26, 1)],
+    &[(4, 0x26, 2)],
+    &[(4, 0x28, 0)],
+    &[(4, 0x28, 1)],
+    &[(4, 0x2a, 0)],
+    &[(4, 0x2c, 2)],
+    &[(0, 0x6c, 0), (8, 0x6c, 0x40)],
+    &[(0, 0x76, 0), (8, 0x76, 0x40)],
+    &[(0, 0xf2, 2), (8, 0xf4, 2)],
+    &[(4, 0x32, 1)],
+    &[(4, 0x4a, 1)],
+    &[(4, 0x42, 2)],
+    &[(4, 0x46, 1)],
+    &[(4, 0x46, 2)],
+    &[(4, 0x4e, 2)],
+    &[(4, 0x4c, 1)],
+    &[(0, 0x6a, 2), (7, 0x6a, 0x42)],
+    &[(4, 0x4c, 2)],
+    &[(4, 0x32, 2)],
+    &[(4, 0x2e, 2)],
+    &[(0, 0x68, 2), (7, 0x68, 0x42)],
+    &[(-8, 0x6e, 2), (0, 0x6e, 0x42)],
+    &[(4, 0x56, 0)],
+    &[(4, 0x36, 0)],
+    &[(4, 0x36, 1)],
+    &[(4, 0x40, 1)],
+];
+
+/// Draws dungeon item `item` with its position at `x`, `y` on the room.
+pub fn draw_item(rom: &[u8], level: usize, image: &mut Image, item: u8, x: i32, y: i32) {
+    if let Some(sprites) = ITEM_SPRITES.get(usize::from(item)) {
+        for &(dx, tile, attr) in sprites.iter() {
+            draw_sprite(rom, level, image, tile, attr, x + dx, y + 1);
+        }
+    }
+}
+
+pub enum Monster {
+    None,
+    /// Drawn in the room at its own place: x, y on the room, tile, attributes.
+    Fixed(&'static [(i32, i32, u8, u8)]),
+    /// One of a crowd: sprites relative to it.
+    Icon(&'static [(i32, i32, u8, u8)]),
+}
+
+/// How monster code `code` (0x00-0x61) looks.
+pub fn monster(code: u8) -> &'static Monster {
+    MONSTERS.get(usize::from(code)).unwrap_or(&Monster::None)
+}
+
+/// Monster code 0x00-0x61 -> how the game draws it, measured with
+/// `tools/emu`: in the room at its own place (people, bosses and other
+/// fixed sets, sprites x, y on the 256 x 176 room) or as an icon (sprites
+/// relative to one monster).
+const MONSTERS: [Monster; 0x62] = [
+    Monster::None,
+    Monster::Icon(&[(-1, 0, 0xd2, 0x01), (7, 0, 0xd4, 0x01)]),
+    Monster::Icon(&[(-1, 0, 0xd2, 0x02), (7, 0, 0xd4, 0x02)]),
+    Monster::Icon(&[(0, 0, 0xf2, 0x43), (8, 0, 0xf0, 0x43)]),
+    Monster::Icon(&[(-1, 0, 0xfa, 0x42), (7, 0, 0xf8, 0x42)]),
+    Monster::Icon(&[(0, 0, 0xb6, 0x41), (8, 0, 0xb4, 0x41)]),
+    Monster::Icon(&[(-1, 0, 0xbc, 0x02), (7, 0, 0xbe, 0x02)]),
+    Monster::Icon(&[(0, 0, 0xba, 0x42), (8, 0, 0xb8, 0x42)]),
+    Monster::Icon(&[(-1, 0, 0xba, 0x42), (7, 0, 0xb8, 0x42)]),
+    Monster::Icon(&[(0, 0, 0xba, 0x41), (8, 0, 0xb8, 0x41)]),
+    Monster::Icon(&[(0, 0, 0xba, 0x41), (8, 0, 0xb8, 0x41)]),
+    Monster::Icon(&[(-1, 0, 0xb0, 0x02), (7, 0, 0xb2, 0x02)]),
+    Monster::Icon(&[(0, 0, 0xbe, 0x41), (8, 0, 0xbc, 0x41)]),
+    Monster::Icon(&[(1, -1, 0xcc, 0x01), (9, -1, 0xcc, 0x41)]),
+    Monster::Icon(&[(1, -2, 0xcc, 0x02), (9, -2, 0xcc, 0x42)]),
+    Monster::Icon(&[(0, 0, 0xc0, 0x01), (8, 0, 0xc0, 0x41)]),
+    Monster::Icon(&[(0, -1, 0xc2, 0x02), (8, -1, 0xc2, 0x42)]),
+    Monster::Icon(&[(0, 0, 0xec, 0x03), (8, 0, 0xec, 0x43)]),
+    Monster::Icon(&[(-1, 3, 0xae, 0x01), (7, 3, 0xae, 0x41)]),
+    Monster::Icon(&[(0, 0, 0xa8, 0x03), (8, 0, 0xa8, 0x43)]),
+    Monster::Icon(&[(4, 0, 0x94, 0x03)]),
+    Monster::Icon(&[(3, 0, 0x94, 0x03)]),
+    Monster::Icon(&[(0, 0, 0xa2, 0x00), (8, 0, 0xa2, 0x40)]),
+    Monster::Icon(&[(-1, 0, 0xa4, 0x02), (7, 0, 0xa4, 0x42)]),
+    Monster::Icon(&[(0, 0, 0xd8, 0x03), (8, 0, 0xda, 0x03)]),
+    Monster::None,
+    Monster::Icon(&[(0, 0, 0xc8, 0x02), (8, 0, 0xc8, 0x42)]),
+    Monster::Icon(&[(0, 0, 0x9a, 0x01), (8, 0, 0x9a, 0x41)]),
+    Monster::Icon(&[(1, 0, 0x9a, 0x02), (9, 0, 0x9a, 0x42)]),
+    Monster::Icon(&[(1, 0, 0x9a, 0x03), (9, 0, 0x9a, 0x43)]),
+    Monster::None,
+    Monster::Icon(&[
+        (-48, -21, 0x90, 0x02),
+        (-40, -21, 0x92, 0x02),
+        (-37, -19, 0x90, 0x02),
+        (-29, -19, 0x92, 0x02),
+        (19, 1, 0x90, 0x02),
+        (27, 1, 0x92, 0x02),
+    ]),
+    Monster::Icon(&[(-1, -1, 0xe8, 0x02), (7, -1, 0xea, 0x02)]),
+    Monster::Icon(&[(0, 0, 0xe2, 0x41), (8, 0, 0xe0, 0x41)]),
+    Monster::Icon(&[(0, 0, 0xe0, 0x01), (8, 0, 0xe2, 0x01)]),
+    Monster::Icon(&[(0, 0, 0xb8, 0x01), (8, 0, 0xba, 0x01)]),
+    Monster::Icon(&[(0, 0, 0xb6, 0x42), (8, 0, 0xb4, 0x42)]),
+    Monster::None,
+    Monster::None,
+    Monster::Icon(&[(0, 1, 0x9e, 0x41), (8, 1, 0xac, 0x41)]),
+    Monster::Icon(&[(-1, 0, 0xa4, 0x02), (7, 0, 0xa6, 0x02)]),
+    Monster::None,
+    Monster::Icon(&[(-1, 0, 0xaa, 0x42), (7, 0, 0xa8, 0x42)]),
+    Monster::Icon(&[(-1, 0, 0x90, 0x40), (7, 0, 0x8e, 0x40)]),
+    Monster::Icon(&[(-1, 0, 0x90, 0x41), (7, 0, 0x8e, 0x41)]),
+    Monster::Icon(&[(-1, 0, 0x90, 0x42), (7, 0, 0x8e, 0x42)]),
+    Monster::Icon(&[(-2, 0, 0x96, 0x40), (6, 0, 0x94, 0x40)]),
+    Monster::Icon(&[(4, 0, 0x50, 0x02)]),
+    Monster::Icon(&[(-1, 0, 0xa6, 0x41), (7, 0, 0xa4, 0x41)]),
+    Monster::Icon(&[(0, 0, 0xe4, 0x03), (8, 0, 0xe6, 0x03)]),
+    Monster::Fixed(&[
+        (49, 29, 0xe4, 0x03),
+        (57, 29, 0xe6, 0x03),
+        (65, 29, 0xe8, 0x03),
+        (73, 29, 0xea, 0x03),
+    ]),
+    Monster::Fixed(&[
+        (86, 48, 0xfa, 0x41),
+        (94, 48, 0xf8, 0x41),
+        (100, 48, 0x44, 0x00),
+        (102, 48, 0xfc, 0x01),
+        (110, 48, 0xfc, 0x41),
+        (118, 48, 0xf2, 0x41),
+        (126, 48, 0xf0, 0x41),
+    ]),
+    Monster::Fixed(&[
+        (86, 48, 0xfa, 0x42),
+        (94, 48, 0xf8, 0x42),
+        (100, 48, 0x44, 0x00),
+        (102, 48, 0xfc, 0x02),
+        (110, 48, 0xfc, 0x42),
+        (118, 48, 0xf2, 0x42),
+        (126, 48, 0xf0, 0x42),
+    ]),
+    Monster::Fixed(&[
+        (124, 48, 0x32, 0x02),
+        (116, 64, 0x32, 0x02),
+        (132, 64, 0x32, 0x02),
+        (100, 80, 0x32, 0x02),
+        (116, 80, 0x32, 0x02),
+        (132, 80, 0x32, 0x02),
+        (148, 80, 0x32, 0x02),
+        (116, 96, 0x32, 0x02),
+        (132, 96, 0x32, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0xb0, 0x02),
+        (128, 64, 0xb2, 0x02),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+    ]),
+    Monster::Fixed(&[
+        (120, 72, 0xf6, 0x00),
+        (128, 72, 0xf6, 0x40),
+        (112, 93, 0x5e, 0x42),
+        (120, 93, 0x5c, 0x42),
+        (128, 93, 0x5e, 0x42),
+        (136, 93, 0x5c, 0x42),
+        (96, 117, 0x5e, 0x42),
+        (104, 117, 0x5c, 0x42),
+        (144, 117, 0x5c, 0x02),
+        (152, 117, 0x5e, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (84, 44, 0xd4, 0x03),
+        (92, 44, 0xd6, 0x03),
+        (100, 44, 0xd6, 0x43),
+        (108, 44, 0xd4, 0x43),
+        (92, 52, 0xd8, 0x03),
+        (100, 52, 0xd8, 0x43),
+        (84, 60, 0xd4, 0x83),
+        (92, 60, 0xd6, 0x83),
+        (100, 60, 0xd6, 0xc3),
+        (108, 60, 0xd4, 0xc3),
+    ]),
+    Monster::None,
+    Monster::Fixed(&[
+        (68, 61, 0xa0, 0x02),
+        (68, 61, 0xa0, 0x02),
+        (76, 61, 0xa0, 0x02),
+        (76, 61, 0xa0, 0x02),
+        (83, 61, 0x9e, 0x02),
+        (83, 61, 0x9e, 0x02),
+        (68, 69, 0xa0, 0x02),
+        (68, 69, 0xa0, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (68, 61, 0xa0, 0x01),
+        (68, 61, 0xa0, 0x01),
+        (76, 61, 0xa0, 0x01),
+        (82, 61, 0x9e, 0x01),
+        (68, 69, 0xa0, 0x01),
+        (68, 69, 0xa0, 0x01),
+        (68, 69, 0xa0, 0x01),
+        (68, 75, 0x9e, 0x01),
+    ]),
+    Monster::Icon(&[(0, 0, 0xea, 0x01), (8, 0, 0xea, 0x41)]),
+    Monster::Fixed(&[
+        (168, 64, 0xcc, 0x03),
+        (176, 64, 0xc4, 0x03),
+        (184, 64, 0xc8, 0x03),
+        (168, 80, 0xc2, 0x03),
+        (176, 80, 0xc6, 0x03),
+        (184, 80, 0xca, 0x03),
+        (127, 87, 0x44, 0x00),
+    ]),
+    Monster::Fixed(&[
+        (80, 29, 0xc0, 0x03),
+        (88, 29, 0xc2, 0x03),
+        (96, 29, 0xc6, 0x43),
+        (104, 29, 0xc4, 0x43),
+        (80, 45, 0xc8, 0x03),
+        (88, 45, 0xca, 0x03),
+        (96, 45, 0xce, 0x43),
+        (104, 45, 0xcc, 0x43),
+    ]),
+    Monster::Fixed(&[(80, 29, 0x5e, 0x42), (88, 29, 0x5c, 0x42)]),
+    Monster::Fixed(&[(80, 29, 0x5e, 0x42), (88, 29, 0x5c, 0x42)]),
+    Monster::Fixed(&[
+        (135, 48, 0x44, 0x02),
+        (128, 55, 0x44, 0x02),
+        (143, 55, 0x44, 0x02),
+        (128, 63, 0x44, 0x02),
+        (144, 63, 0x44, 0x02),
+        (128, 71, 0x44, 0x02),
+        (144, 71, 0x44, 0x02),
+        (128, 79, 0x44, 0x02),
+        (144, 79, 0x44, 0x02),
+        (128, 87, 0x44, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (116, 23, 0xc0, 0x03),
+        (124, 23, 0xc4, 0x03),
+        (132, 23, 0xc8, 0x03),
+        (116, 39, 0xc2, 0x03),
+        (124, 39, 0xc6, 0x03),
+        (132, 39, 0xca, 0x03),
+        (124, 47, 0xda, 0x03),
+        (120, 58, 0xda, 0x03),
+        (116, 65, 0xda, 0x03),
+        (118, 70, 0xda, 0x03),
+        (108, 71, 0xdc, 0x03),
+        (112, 71, 0x44, 0x03),
+    ]),
+    Monster::Fixed(&[
+        (116, 23, 0xc0, 0x03),
+        (124, 23, 0xc4, 0x03),
+        (132, 23, 0xc8, 0x03),
+        (116, 39, 0xc2, 0x03),
+        (124, 39, 0xc6, 0x03),
+        (132, 39, 0xca, 0x03),
+        (124, 47, 0xda, 0x03),
+        (124, 47, 0xda, 0x03),
+        (126, 52, 0xda, 0x03),
+        (126, 57, 0xda, 0x03),
+        (120, 58, 0xda, 0x03),
+        (120, 59, 0xda, 0x03),
+        (130, 59, 0xdc, 0x03),
+        (116, 65, 0xda, 0x03),
+        (118, 70, 0xda, 0x03),
+        (108, 71, 0xdc, 0x03),
+        (112, 71, 0x44, 0x03),
+    ]),
+    Monster::Fixed(&[
+        (116, 23, 0xc0, 0x03),
+        (124, 23, 0xc4, 0x03),
+        (132, 23, 0xc8, 0x03),
+        (116, 39, 0xc2, 0x03),
+        (124, 39, 0xc6, 0x03),
+        (132, 39, 0xca, 0x03),
+        (124, 47, 0xda, 0x03),
+        (124, 47, 0xda, 0x03),
+        (124, 47, 0xda, 0x03),
+        (125, 52, 0xda, 0x03),
+        (125, 52, 0xda, 0x03),
+        (125, 57, 0xda, 0x03),
+        (127, 57, 0xda, 0x03),
+        (120, 58, 0xda, 0x03),
+        (121, 60, 0xda, 0x03),
+        (131, 60, 0xdc, 0x03),
+        (125, 62, 0xda, 0x03),
+        (116, 65, 0xda, 0x03),
+        (124, 67, 0xdc, 0x03),
+        (118, 70, 0xda, 0x03),
+        (108, 71, 0xdc, 0x03),
+        (112, 75, 0x44, 0x00),
+    ]),
+    Monster::Fixed(&[
+        (116, 23, 0xc0, 0x03),
+        (124, 23, 0xc4, 0x03),
+        (132, 23, 0xc8, 0x03),
+        (116, 39, 0xc2, 0x03),
+        (124, 39, 0xc6, 0x03),
+        (132, 39, 0xca, 0x03),
+        (124, 47, 0xda, 0x03),
+        (124, 47, 0xda, 0x03),
+        (124, 47, 0xda, 0x03),
+        (124, 47, 0xda, 0x03),
+        (124, 52, 0xda, 0x03),
+        (125, 52, 0xda, 0x03),
+        (125, 52, 0xda, 0x03),
+        (124, 57, 0xda, 0x03),
+        (125, 57, 0xda, 0x03),
+        (127, 57, 0xda, 0x03),
+        (120, 58, 0xda, 0x03),
+        (121, 60, 0xda, 0x03),
+        (131, 60, 0xdc, 0x03),
+        (124, 62, 0xda, 0x03),
+        (125, 62, 0xda, 0x03),
+        (116, 65, 0xda, 0x03),
+        (124, 67, 0xdc, 0x03),
+        (124, 67, 0xdc, 0x03),
+        (128, 67, 0x44, 0x00),
+        (118, 70, 0xda, 0x03),
+        (108, 71, 0xdc, 0x03),
+    ]),
+    Monster::Fixed(&[
+        (80, 54, 0xee, 0x02),
+        (88, 54, 0xee, 0x42),
+        (88, 62, 0x44, 0x00),
+    ]),
+    Monster::Fixed(&[
+        (125, 6, 0xfc, 0x02),
+        (99, 11, 0xfe, 0x02),
+        (156, 20, 0xfc, 0x02),
+        (101, 33, 0xfe, 0x02),
+        (136, 40, 0xfa, 0x41),
+        (144, 40, 0xf8, 0x41),
+        (184, 50, 0xfe, 0x02),
+        (126, 60, 0xfc, 0x02),
+        (184, 72, 0xfe, 0x02),
+        (161, 76, 0xfc, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (147, 15, 0xfc, 0x02),
+        (128, 17, 0xfe, 0x02),
+        (163, 26, 0xfe, 0x02),
+        (111, 35, 0xfe, 0x02),
+        (136, 40, 0xfa, 0x41),
+        (144, 40, 0xf8, 0x41),
+        (167, 47, 0xfc, 0x02),
+        (115, 58, 0xfc, 0x02),
+        (154, 65, 0xfe, 0x02),
+        (132, 69, 0xfe, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (32, 29, 0x96, 0x01),
+        (40, 29, 0x96, 0x41),
+        (208, 29, 0x96, 0x01),
+        (216, 29, 0x96, 0x41),
+        (64, 77, 0x96, 0x01),
+        (72, 77, 0x96, 0x41),
+        (176, 77, 0x96, 0x01),
+        (184, 77, 0x96, 0x41),
+        (110, 125, 0x96, 0x01),
+        (118, 125, 0x96, 0x41),
+        (130, 125, 0x96, 0x01),
+        (138, 125, 0x96, 0x41),
+    ]),
+    Monster::None,
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+        (124, 88, 0x32, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+        (88, 88, 0x68, 0x02),
+        (95, 88, 0x68, 0x42),
+        (156, 88, 0x32, 0x02),
+    ]),
+    Monster::Fixed(&[
+        (72, 64, 0x5e, 0x42),
+        (80, 64, 0x5c, 0x42),
+        (120, 64, 0x98, 0x02),
+        (128, 64, 0x98, 0x42),
+        (168, 64, 0x5e, 0x42),
+        (176, 64, 0x5c, 0x42),
+    ]),
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::None,
+    Monster::Fixed(&[(84, 29, 0x34, 0x01)]),
+    Monster::None,
+];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mirrored_wall_tiles_follow_the_game() {
+        assert_eq!(mirror(0xc0, true, false), 0xc3);
+        assert_eq!(mirror(0xc0, false, true), 0xc1);
+        assert_eq!(mirror(0xc0, true, true), 0xc2);
+        assert_eq!(mirror(0xe0, true, true), 0xe0);
+        assert_eq!(mirror(0xf5, true, false), 0xf5);
+    }
+}

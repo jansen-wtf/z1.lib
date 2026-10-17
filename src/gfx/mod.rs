@@ -6,6 +6,7 @@
 mod overworld;
 pub mod pictures;
 mod png;
+pub mod underworld;
 
 pub use overworld::{Screen, decode_screen};
 pub use pictures::picture;
