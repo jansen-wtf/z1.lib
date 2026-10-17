@@ -172,7 +172,8 @@ wanted, so the game itself loads and draws it.
 | Level blocks | `0x19313` + 0xFC * level | background then sprite palettes; `+0x21` monster counts; `+0x26` four item positions; `+0x2C` start room |
 | Monster sprites | `0xC010` + 2 * level | bank 3 pointer to the sprites loaded at tile `9E` |
 | Boss sprites | `0xC024` + 2 * level | bank 3 pointer to the sprites loaded at tile `C0` |
-| Mixed monster groups | `0x1474F` + 2 * (code - 0x62) | pointer (bank 5) to 5 monster codes |
+| Mixed monster groups | `0x1474F` + 2 * (code - 0x62) | pointer (bank 5) to the monster codes; a room takes as many as its count, reading on past the group's own list |
+| Object tiles | `0x6E70`-`0x6F5F` | first tiles of the monsters' frames, copied to RAM at `$75F0`; the generator rewrites them when it moves monster graphics |
 
 **Columns.** As on the overworld, the high nibble of a column id picks a
 directory entry and the low nibble counts column starts (bit 7). A column
@@ -200,5 +201,6 @@ the rest as on the overworld. Sprite tiles `8E`-`9D` come from `0xDCCB`,
 **Items and monsters.** An item lies at its level's position `0xXY`
 (16-pixel steps, including the status bar's 64 pixels). How each item and
 monster is drawn was measured with the emulator, as for the overworld
-items; old men's words are written into the room's rows 5 and 6 from
+items; a monster's tiles are kept as the object tile entries the game
+read while drawing it, so they follow the generator's changes; old men's words are written into the room's rows 5 and 6 from
 column 4.
