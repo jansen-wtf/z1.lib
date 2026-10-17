@@ -146,3 +146,59 @@ battery RAM from `$687E`; the cave item table `0x18610` is at `$6A7E`.
 | `$EB` | current overworld screen |
 | `$70`, `$84` | Link's x and y |
 | `$067F` + screen | overworld screen flags; bit 7: secret found |
+
+## Dungeon rooms
+
+A room is drawn like an overworld screen, 32 x 22 tiles, but from its own
+tables; `node verify-dungeons.js` checks `z1r::gfx::underworld` against the
+running game for every room of the nine levels. It enters a level with the
+start room, which the game copies to RAM at `$6BAD`, changed to the room
+wanted, so the game itself loads and draws it.
+
+| Table | Offset | Use |
+|---|---|---|
+| Room tables A-F | `0x18710` + 0x80 * table + room | per level group: `+0x300` for levels 7-9, `+0x600` for the second quest |
+| A | | bits 5-7: north door, bits 2-4: south door, bits 0-1: palette of the walls |
+| B | | bits 5-7: west door, bits 2-4: east door, bits 0-1: palette inside |
+| C | | bits 0-5: monster code (with D bit 7 as bit 6), bits 6-7: which monster count |
+| D | | bits 0-5: room layout; `3E`/`3F` are the basements staircases lead to |
+| E | | bits 0-4: item (`3` none) |
+| F | | bits 4-5: which item position |
+| Layouts | `0x160EE` + 12 * layout | 12 column ids |
+| Column directory | `0x16714` | 10 pointers (bank 5) into the column heap |
+| Squares | `0x16728` + square | first tile of each square |
+| Walls | `0x15FB0` / `0x15FCE` | left wall, 3 columns of 10 tiles; top wall, 12 columns of 3 tiles 4 bytes apart |
+| Doors | `0x15FFE` east, `0x1603A` west, `0x16076` south, `0x160B2` north | 5 looks x 12 tiles: open, locked, shutter, wall, bombed |
+| Level blocks | `0x19313` + 0xFC * level | background then sprite palettes; `+0x21` monster counts; `+0x26` four item positions; `+0x2C` start room |
+| Monster sprites | `0xC010` + 2 * level | bank 3 pointer to the sprites loaded at tile `9E` |
+| Boss sprites | `0xC024` + 2 * level | bank 3 pointer to the sprites loaded at tile `C0` |
+| Mixed monster groups | `0x1474F` + 2 * (code - 0x62) | pointer (bank 5) to 5 monster codes |
+
+**Columns.** As on the overworld, the high nibble of a column id picks a
+directory entry and the low nibble counts column starts (bit 7). A column
+is 7 squares; a byte gives a square in bits 0-3 and repeats it as often as
+bits 4-6 say, plus once.
+
+**Squares.** A square's first tile `p` gives `p`, `p + 1`, `p + 2`, `p + 3`,
+except for tiles below `70` and from `F0` on (sand, water, black), which
+fill all four.
+
+**Walls.** The stored quarter is the top left. The others use mirrored
+tiles that the game keeps next to each other: for tiles `B8`-`D8` in steps
+of 4, `+3` mirrors horizontally, `+1` vertically, `+2` both; `DC` has its
+vertical mirror at `DD`, `DE` its horizontal one at `DF`, and `E0` flips
+to `E1` when mirrored one way only.
+
+**Doors.** Door types 0-7 look open, wall, wall, wall, wall (bomb; blown
+open it is the fifth look), locked, locked and shutter. Each look is 12
+tiles: 3 columns of 4 for the side doors, 4 columns of 3 for the others.
+
+**Tiles.** Background tiles `70`-`F1` come from `0xC12B + 16 * (t - 0x70)`,
+the rest as on the overworld. Sprite tiles `8E`-`9D` come from `0xDCCB`,
+`9E`-`BF` and `C0`-`FF` through the level's two pointers.
+
+**Items and monsters.** An item lies at its level's position `0xXY`
+(16-pixel steps, including the status bar's 64 pixels). How each item and
+monster is drawn was measured with the emulator, as for the overworld
+items; old men's words are written into the room's rows 5 and 6 from
+column 4.
