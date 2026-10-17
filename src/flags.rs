@@ -1,5 +1,5 @@
 //! The original's flag string: one big number in base 63 that packs the
-//! state of 27 drop-down lists and 91 three-state check boxes.
+//! state of 27 drop-down lists and 94 three-state check boxes.
 
 use std::fmt;
 
@@ -168,8 +168,11 @@ pub mod check {
     pub const OW_VISIBLE_TILES: usize = 88;
     pub const BOMB_CAPACITY_UP: usize = 89;
     pub const ALT_DROPS: usize = 90;
+    pub const NO_MAPS: usize = 91;
+    pub const START_MAPS: usize = 92;
+    pub const START_ALL_COMPASSES: usize = 93;
 
-    pub const COUNT: usize = 91;
+    pub const COUNT: usize = 94;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
