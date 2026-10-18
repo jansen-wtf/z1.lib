@@ -10,7 +10,8 @@ pub const HEADER_LEN: usize = 16;
 pub const BODY_LEN: usize = 0x20000;
 pub const FILE_LEN: usize = HEADER_LEN + BODY_LEN;
 
-/// SHA-1 of the 128 KiB PRG body of Zelda (USA), header excluded.
+/// SHA-1 of the 128 KiB PRG body of Zelda (USA), header excluded; the
+/// No-Intro DAT lists the same values for its headerless images.
 pub const PRG0_BODY_SHA1: &str = "a12d74c73a0481599a5d832361d168f4737bbcf6";
 pub const REV1_BODY_SHA1: &str = "be2f5dc8c5ba8ec1a344a71f9fb204750af24fe7";
 
@@ -24,6 +25,23 @@ pub enum Revision {
 }
 
 impl Revision {
+    pub const ALL: [Revision; 2] = [Revision::Prg0, Revision::Rev1];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Revision::Prg0 => "prg0",
+            Revision::Rev1 => "rev1",
+        }
+    }
+
+    /// As No-Intro lists the headerless image.
+    pub fn body_sha1(self) -> &'static str {
+        match self {
+            Revision::Prg0 => PRG0_BODY_SHA1,
+            Revision::Rev1 => REV1_BODY_SHA1,
+        }
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Revision::Prg0 => "Legend of Zelda, The (USA)",
