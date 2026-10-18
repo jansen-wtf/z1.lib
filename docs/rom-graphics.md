@@ -2,7 +2,8 @@
 
 Where the game keeps what it draws, for rendering maps, tooltips and the
 like straight from a ROM. All addresses are file offsets in
-"Legend of Zelda, The (USA) (Rev 1)" including the 16-byte iNES header.
+"Legend of Zelda, The (USA)" including the 16-byte iNES header; they hold
+for both the first release (PRG0) and Rev 1, which differ elsewhere.
 Everything below was measured with the emulator scripts in
 [tools/emu](../tools/emu), not taken from guesses; `node verify.js` checks
 the overworld part against the running game for all 128 screens.
