@@ -1,4 +1,4 @@
-//! iNES image of The Legend of Zelda (USA, Rev 1).
+//! iNES image of The Legend of Zelda (USA), first release (PRG0) or Rev 1.
 //!
 //! All offsets in this crate are file offsets including the 16-byte iNES
 //! header, which is how the ROM layout is commonly documented.
@@ -10,8 +10,27 @@ pub const HEADER_LEN: usize = 16;
 pub const BODY_LEN: usize = 0x20000;
 pub const FILE_LEN: usize = HEADER_LEN + BODY_LEN;
 
-/// SHA-1 of the 128 KiB PRG body of Zelda (USA) Rev 1, header excluded.
+/// SHA-1 of the 128 KiB PRG body of Zelda (USA), header excluded.
+pub const PRG0_BODY_SHA1: &str = "a12d74c73a0481599a5d832361d168f4737bbcf6";
 pub const REV1_BODY_SHA1: &str = "be2f5dc8c5ba8ec1a344a71f9fb204750af24fe7";
+
+/// The two US releases the original accepts. Its fixed offsets were made
+/// for PRG0: on Rev 1 the seed and version lines of the title screen land
+/// inside the logo's frame, in the original as in this port.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Revision {
+    Prg0,
+    Rev1,
+}
+
+impl Revision {
+    pub fn name(self) -> &'static str {
+        match self {
+            Revision::Prg0 => "Legend of Zelda, The (USA)",
+            Revision::Rev1 => "Legend of Zelda, The (USA) (Rev 1)",
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum RomError {
@@ -29,7 +48,9 @@ impl fmt::Display for RomError {
             RomError::Header => write!(f, "ROM has no iNES header"),
             RomError::Checksum(sum) => write!(
                 f,
-                "ROM body SHA-1 is {sum}, expected {REV1_BODY_SHA1} (Legend of Zelda, The (USA) (Rev 1))"
+                "ROM body SHA-1 is {sum}, expected {PRG0_BODY_SHA1} ({}) or {REV1_BODY_SHA1} ({})",
+                Revision::Prg0.name(),
+                Revision::Rev1.name()
             ),
         }
     }
@@ -63,10 +84,21 @@ impl Rom {
         let sum = sha1_smol::Sha1::from(&data[HEADER_LEN..])
             .digest()
             .to_string();
-        if sum != REV1_BODY_SHA1 {
+        if sum != PRG0_BODY_SHA1 && sum != REV1_BODY_SHA1 {
             return Err(RomError::Checksum(sum));
         }
         Ok(Rom { data })
+    }
+
+    pub fn revision(&self) -> Revision {
+        let sum = sha1_smol::Sha1::from(&self.data[HEADER_LEN..])
+            .digest()
+            .to_string();
+        if sum == PRG0_BODY_SHA1 {
+            Revision::Prg0
+        } else {
+            Revision::Rev1
+        }
     }
 
     pub fn bytes(&self) -> &[u8] {
