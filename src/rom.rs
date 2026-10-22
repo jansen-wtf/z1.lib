@@ -136,6 +136,38 @@ impl Rom {
     }
 }
 
+/// Where the game keeps the six characters it shows before a level's
+/// digit: "LEVEL-" unless the level-string setting picked another word.
+pub const LEVEL_NAME: usize = 0x19d17;
+
+/// The word the game shows before a level's digit, as it shows it:
+/// "LEVEL-", "BOARD-", "SECTOR", "LAIR -", ...
+pub fn level_name(rom: &[u8]) -> String {
+    rom[LEVEL_NAME..LEVEL_NAME + 6]
+        .iter()
+        .map(|&b| match b {
+            0..=9 => char::from(b'0' + b),
+            10..=35 => char::from(b'A' + b - 10),
+            41 => '!',
+            42 => '\'',
+            44 => '.',
+            46 => '?',
+            // The original writes its dash as tile 0x62, the randomizer as 47.
+            47 | 0x62 => '-',
+            _ => ' ',
+        })
+        .collect()
+}
+
+/// The level's name for text: "Level 3", "Board 3", "Sector 3".
+pub fn level_title(rom: &[u8], level: i32) -> String {
+    let name = level_name(rom);
+    let word = name.trim_end_matches([' ', '-']);
+    let mut title = word[..1.min(word.len())].to_string();
+    title.push_str(&word[1.min(word.len())..].to_lowercase());
+    format!("{title} {level}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,5 +193,20 @@ mod tests {
         let mut data = vec![0; FILE_LEN];
         data[..4].copy_from_slice(b"NES\x1a");
         assert!(matches!(Rom::from_bytes(data), Err(RomError::Checksum(_))));
+    }
+
+    #[test]
+    fn level_names_as_the_game_shows_them() {
+        let mut data = vec![0; FILE_LEN];
+        // The original's "LEVEL-", with its own dash.
+        data[LEVEL_NAME..LEVEL_NAME + 6].copy_from_slice(&[21, 14, 31, 14, 21, 0x62]);
+        assert_eq!(level_name(&data), "LEVEL-");
+        assert_eq!(level_title(&data, 3), "Level 3");
+        // "LAIR -" and "SECTOR" as the randomizer writes them.
+        data[LEVEL_NAME..LEVEL_NAME + 6].copy_from_slice(&[21, 10, 18, 27, 36, 47]);
+        assert_eq!(level_name(&data), "LAIR -");
+        assert_eq!(level_title(&data, 7), "Lair 7");
+        data[LEVEL_NAME..LEVEL_NAME + 6].copy_from_slice(&[28, 14, 12, 29, 24, 27]);
+        assert_eq!(level_title(&data, 1), "Sector 1");
     }
 }
