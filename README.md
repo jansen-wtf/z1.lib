@@ -12,7 +12,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/pure-Rust-f8b800?logo=rust&logoColor=white&labelColor=2b2b2b" alt="pure Rust"></a>
   <picture><img src="https://img.shields.io/badge/ROM-PRG0_%C2%B7_PRG1%2FRev1-0058f8?labelColor=2b2b2b" alt="ROM: PRG0 or PRG1/Rev1"></picture>
   <a href="docs/rom-graphics.md"><img src="https://img.shields.io/badge/graphics-measured,_not_guessed-00a800?labelColor=2b2b2b" alt="graphics measured, not guessed"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d82800?labelColor=2b2b2b" alt="license: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-d82800?labelColor=2b2b2b" alt="license: AGPL-3.0"></a>
 </p>
 
 ## What's in it
@@ -33,7 +33,7 @@ Add it to `Cargo.toml`, pinned to a tag:
 
 ```toml
 [dependencies]
-z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "v0.1.0" }
+z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "0.1.0" }
 ```
 
 Draw an overworld screen from a ROM, original or randomized:
@@ -80,4 +80,6 @@ cargo clippy --all-targets
 
 ## License
 
-MIT
+[AGPL-3.0-or-later](LICENSE). Whoever builds on this library and passes
+the result on, as a program or as a service on the web, passes on its source
+under the same license.
