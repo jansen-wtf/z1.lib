@@ -1,4 +1,4 @@
-//! The original's flag string: one big number in base 63 that packs the
+//! The Zelda Randomizer's flag string: one big number in base 63 that packs the
 //! state of 27 drop-down lists and 94 three-state check boxes.
 
 use std::fmt;
@@ -227,7 +227,7 @@ impl BigNum {
 }
 
 impl Flags {
-    /// Decodes a flag string the way the original's text box does: the
+    /// Decodes a flag string the way the randomizer's text box does: the
     /// first whitespace-separated word counts, unknown characters count as
     /// digit 63, and list values beyond the last entry select the last one.
     pub fn parse(text: &str) -> Flags {

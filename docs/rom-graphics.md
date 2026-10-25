@@ -4,9 +4,9 @@ Where the game keeps what it draws, for rendering maps, tooltips and the
 like straight from a ROM. All addresses are file offsets in
 "Legend of Zelda, The (USA)" including the 16-byte iNES header; they hold
 for both the first release (PRG0) and Rev 1, which differ elsewhere.
-Everything below was measured with the emulator scripts in
-[tools/emu](../tools/emu), not taken from guesses; `node verify.js` checks
-the overworld part against the running game for all 128 screens.
+Everything below was measured in a headless emulator, not taken from
+guesses, and the overworld part checked against the running game for all
+128 screens.
 
 ## Colors
 
@@ -151,10 +151,10 @@ battery RAM from `$687E`; the cave item table `0x18610` is at `$6A7E`.
 ## Dungeon rooms
 
 A room is drawn like an overworld screen, 32 x 22 tiles, but from its own
-tables; `node verify-dungeons.js` checks `z1r::gfx::underworld` against the
-running game for every room of the nine levels. It enters a level with the
-start room, which the game copies to RAM at `$6BAD`, changed to the room
-wanted, so the game itself loads and draws it.
+tables. `z1::gfx::underworld` was checked against the running game for
+every room of the nine levels, by entering a level with the start room,
+which the game copies to RAM at `$6BAD`, changed to the room wanted, so the
+game itself loads and draws it.
 
 | Table | Offset | Use |
 |---|---|---|

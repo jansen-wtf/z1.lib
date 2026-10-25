@@ -15,9 +15,9 @@ pub const FILE_LEN: usize = HEADER_LEN + BODY_LEN;
 pub const PRG0_BODY_SHA1: &str = "a12d74c73a0481599a5d832361d168f4737bbcf6";
 pub const REV1_BODY_SHA1: &str = "be2f5dc8c5ba8ec1a344a71f9fb204750af24fe7";
 
-/// The two US releases the original accepts. Its fixed offsets were made
-/// for PRG0: on Rev 1 the seed and version lines of the title screen land
-/// inside the logo's frame, in the original as in this port.
+/// The two US releases the Zelda Randomizer accepts. Its fixed offsets were
+/// made for PRG0: on Rev 1 the seed and version lines of its title screen
+/// land inside the logo's frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Revision {
     Prg0,
@@ -152,7 +152,7 @@ pub fn level_name(rom: &[u8]) -> String {
             42 => '\'',
             44 => '.',
             46 => '?',
-            // The original writes its dash as tile 0x62, the randomizer as 47.
+            // The game writes its dash as tile 0x62, the Zelda Randomizer as 47.
             47 | 0x62 => '-',
             _ => ' ',
         })
@@ -198,11 +198,11 @@ mod tests {
     #[test]
     fn level_names_as_the_game_shows_them() {
         let mut data = vec![0; FILE_LEN];
-        // The original's "LEVEL-", with its own dash.
+        // The game's own "LEVEL-", with its own dash.
         data[LEVEL_NAME..LEVEL_NAME + 6].copy_from_slice(&[21, 14, 31, 14, 21, 0x62]);
         assert_eq!(level_name(&data), "LEVEL-");
         assert_eq!(level_title(&data, 3), "Level 3");
-        // "LAIR -" and "SECTOR" as the randomizer writes them.
+        // "LAIR -" and "SECTOR" as the Zelda Randomizer writes them.
         data[LEVEL_NAME..LEVEL_NAME + 6].copy_from_slice(&[21, 10, 18, 27, 36, 47]);
         assert_eq!(level_name(&data), "LAIR -");
         assert_eq!(level_title(&data, 7), "Lair 7");

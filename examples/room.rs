@@ -1,10 +1,9 @@
-//! Prints dungeon rooms as `z1r::gfx::underworld` decodes them, for
-//! `tools/emu/verify-dungeons.js`: one line of JSON per room, tiles and
-//! palettes.
+//! Prints dungeon rooms as `z1::gfx::underworld` decodes them, one line of
+//! JSON per room with tiles and palettes, to compare with an emulator.
 //!
 //!     room <rom> <tables> <room>...
 
-use z1r::gfx::underworld::decode_room;
+use z1::gfx::underworld::decode_room;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

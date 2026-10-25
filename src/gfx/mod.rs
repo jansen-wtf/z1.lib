@@ -166,7 +166,7 @@ pub fn paint_screen(rom: &[u8], screen: usize, image: &mut Image, x0: i32, y0: i
 }
 
 /// Item id -> sprites as the game draws the item: x offset, tile, palette,
-/// mirrored. Measured with `tools/emu/items.js`.
+/// mirrored. Measured in a headless emulator.
 const ITEM_SPRITES: [&[(i32, u8, usize, bool)]; 36] = [
     &[(0, 0x34, 1, false)],
     &[(0, 0x20, 0, false)],

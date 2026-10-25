@@ -1,8 +1,7 @@
 //! Dungeon rooms as the game draws them: walls and doors, the room's
 //! layout of 12 columns of 7 squares, its items and its monsters. The
 //! addresses are documented, with how they were measured, in
-//! `docs/rom-graphics.md`; `tools/emu/verify-dungeons.js` checks the
-//! background against the running game.
+//! `docs/rom-graphics.md`.
 
 use super::{Image, NES, tile_pixel};
 
@@ -323,7 +322,7 @@ pub fn monster_codes(rom: &[u8], code: u8, count: usize) -> Vec<u8> {
 }
 
 /// Item id -> sprites as the game draws it in a dungeon: x offset from the
-/// item's position, tile, OAM attributes. Measured with `tools/emu`.
+/// item's position, tile, OAM attributes. Measured in a headless emulator.
 const ITEM_SPRITES: [&[(i32, u8, u8)]; 32] = [
     &[(4, 0x34, 1)],
     &[(4, 0x20, 0)],
@@ -406,8 +405,8 @@ pub fn monster(code: u8) -> &'static Monster {
     MONSTERS.get(usize::from(code)).unwrap_or(&Monster::None)
 }
 
-/// Monster code 0x00-0x61 -> how the game draws it, measured with
-/// `tools/emu`: in the room at its own place (people, bosses and other
+/// Monster code 0x00-0x61 -> how the game draws it, measured in a headless
+/// emulator: in the room at its own place (people, bosses and other
 /// fixed sets, sprites x, y on the 256 x 176 room) or as an icon (sprites
 /// relative to one monster). See `Sprite` for the tiles.
 const MONSTERS: [Monster; 0x62] = [
