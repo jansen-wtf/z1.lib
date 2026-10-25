@@ -71,7 +71,6 @@ reading functions take the bytes of any ROM.
 ```sh
 cargo test
 cargo clippy --all-targets
-cargo run --example room -- zelda.nes 0 34   # 1st quest, levels 1-6, room 0x22
 ```
 
 ## Used by
