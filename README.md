@@ -43,7 +43,7 @@ Add it to `Cargo.toml`, pinned to a tag:
 
 ```toml
 [dependencies]
-z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "1.0.0" }
+z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "1.1.0" }
 ```
 
 Draw an overworld screen from a ROM, original or randomized:
