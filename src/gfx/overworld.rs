@@ -22,6 +22,7 @@ const SECONDARY: usize = 0x16986;
 /// Squares 0-15: four tiles each.
 const FOURS: usize = 0x169c4;
 
+/// An overworld screen as the game writes it to the name table.
 pub struct Screen {
     /// 22 rows of 32 tiles
     pub tiles: [[u8; 32]; 22],
@@ -80,6 +81,11 @@ fn square_tiles(rom: Bytes<'_>, square: u8) -> [u8; 4] {
     [first, first + 1, first + 2, first + 3]
 }
 
+/// Overworld screen `screen`, 0x00-0x7F, as the game builds it.
+///
+/// # Panics
+/// When `screen` is so far past 0x7F that its table entry lies past the
+/// end of the ROM; from 0x80 on it reads other tables' bytes.
 pub fn decode_screen(rom: Bytes<'_>, screen: usize) -> Screen {
     let layout = usize::from(rom[TABLE3 + screen] & 0x7f);
     let mut s = Screen {

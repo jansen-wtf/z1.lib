@@ -7,10 +7,11 @@ use crate::rom::Bytes;
 pub const GATE: usize = 0x4ab1;
 /// z1r's own gate check, when the gate jumps to `$9F00`.
 pub const GATE_CHECK: usize = 0x5f10;
-/// `JMP $A830` here when z1r sets a starting inventory, the 40 bytes it
-/// copies to `$0657`.
+/// `JMP $A830` here when z1r sets a starting inventory.
 pub const START_JUMP: usize = 0x9f4e;
+/// The starting inventory, which the game copies to `$0657`.
 pub const START_INVENTORY: usize = 0xa850;
+/// Its length.
 pub const START_INVENTORY_LEN: usize = 40;
 /// `JMP $B8A0` here when the book is an atlas (`39 BE E6` in the original).
 pub const BOOK_ATLAS: usize = 0x17614;
@@ -41,9 +42,11 @@ pub enum Gate {
     Pieces(u8),
     /// An item instead of triforces.
     Item(u8),
+    /// No gate.
     Open,
 }
 
+/// What opens level 9 in this ROM.
 pub fn gate(rom: Bytes<'_>) -> Gate {
     if rom[GATE + 3..GATE + 7] == [0xea; 4] {
         return Gate::Open;
@@ -70,6 +73,7 @@ pub fn start_inventory(rom: Bytes<'_>) -> Option<[u8; START_INVENTORY_LEN]> {
     })
 }
 
+/// Whether the book shows every level's map.
 pub fn book_is_atlas(rom: Bytes<'_>) -> bool {
     rom[BOOK_ATLAS..BOOK_ATLAS + 3] == [0x4c, 0xa0, 0xb8]
 }

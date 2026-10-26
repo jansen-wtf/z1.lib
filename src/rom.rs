@@ -6,13 +6,17 @@
 use std::fmt;
 use std::path::Path;
 
+/// The iNES header in front of the game.
 pub const HEADER_LEN: usize = 16;
+/// The game itself: eight banks of 16 KiB.
 pub const BODY_LEN: usize = 0x20000;
+/// The whole file, header and game.
 pub const FILE_LEN: usize = HEADER_LEN + BODY_LEN;
 
 /// SHA-1 of the 128 KiB PRG body of Zelda (USA), header excluded; the
 /// No-Intro DAT lists the same values for its headerless images.
 pub const PRG0_BODY_SHA1: &str = "a12d74c73a0481599a5d832361d168f4737bbcf6";
+/// The same for Rev 1.
 pub const REV1_BODY_SHA1: &str = "be2f5dc8c5ba8ec1a344a71f9fb204750af24fe7";
 
 /// The two US releases the Zelda Randomizer accepts. Its fixed offsets were
@@ -21,13 +25,17 @@ pub const REV1_BODY_SHA1: &str = "be2f5dc8c5ba8ec1a344a71f9fb204750af24fe7";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Revision {
+    /// The first release, "PRG0".
     Prg0,
+    /// The second, "PRG1" or "Rev 1".
     Rev1,
 }
 
 impl Revision {
+    /// Both, the first release first.
     pub const ALL: [Revision; 2] = [Revision::Prg0, Revision::Rev1];
 
+    /// A short name for files and settings: `prg0`, `rev1`.
     pub fn id(self) -> &'static str {
         match self {
             Revision::Prg0 => "prg0",
@@ -43,6 +51,7 @@ impl Revision {
         }
     }
 
+    /// The name No-Intro gives the image.
     pub fn name(self) -> &'static str {
         match self {
             Revision::Prg0 => "Legend of Zelda, The (USA)",
@@ -51,12 +60,18 @@ impl Revision {
     }
 }
 
+/// Why a file is no ROM this crate can read.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum RomError {
+    /// The file could not be read.
     Io(std::io::Error),
+    /// The file has this many bytes, not `FILE_LEN`.
     Size(usize),
+    /// The file does not start with an iNES header.
     Header,
+    /// The game is neither release, by this SHA-1; a randomized ROM is not
+    /// either, `Bytes` takes it.
     Checksum(String),
 }
 
@@ -91,6 +106,7 @@ impl From<std::io::Error> for RomError {
 pub struct Bytes<'a>(&'a [u8; FILE_LEN]);
 
 impl<'a> Bytes<'a> {
+    /// Checks `data` for the size and the iNES header of a Zelda ROM.
     pub fn new(data: &'a [u8]) -> Result<Bytes<'a>, RomError> {
         let data: &[u8; FILE_LEN] = data.try_into().map_err(|_| RomError::Size(data.len()))?;
         if &data[..4] != b"NES\x1a" {
@@ -99,6 +115,7 @@ impl<'a> Bytes<'a> {
         Ok(Bytes(data))
     }
 
+    /// The bytes, `FILE_LEN` of them.
     pub fn as_slice(&self) -> &'a [u8] {
         self.0
     }
@@ -124,16 +141,20 @@ impl<'a> From<&'a Rom> for Bytes<'a> {
     }
 }
 
+/// An unmodified ROM of either release, owned, to make a randomized one
+/// from.
 #[derive(Clone)]
 pub struct Rom {
     data: Vec<u8>,
 }
 
 impl Rom {
+    /// Reads and checks the file at `path`.
     pub fn load(path: &Path) -> Result<Rom, RomError> {
         Rom::from_bytes(std::fs::read(path)?)
     }
 
+    /// Checks `data` for size, header and the SHA-1 of either release.
     pub fn from_bytes(data: Vec<u8>) -> Result<Rom, RomError> {
         Bytes::new(&data)?;
         let sum = sha1_smol::Sha1::from(&data[HEADER_LEN..])
@@ -145,6 +166,7 @@ impl Rom {
         Ok(Rom { data })
     }
 
+    /// Which release this is.
     pub fn revision(&self) -> Revision {
         let sum = sha1_smol::Sha1::from(&self.data[HEADER_LEN..])
             .digest()
@@ -156,18 +178,31 @@ impl Rom {
         }
     }
 
+    /// The whole file.
     pub fn bytes(&self) -> &[u8] {
         &self.data
     }
 
+    /// The byte at `offset`.
+    ///
+    /// # Panics
+    /// When `offset` is past the end of the file.
     pub fn get(&self, offset: usize) -> u8 {
         self.data[offset]
     }
 
+    /// Writes one byte at `offset`.
+    ///
+    /// # Panics
+    /// When `offset` is past the end of the file.
     pub fn set(&mut self, offset: usize, value: u8) {
         self.data[offset] = value;
     }
 
+    /// Writes `values` from `offset` on.
+    ///
+    /// # Panics
+    /// When they would run past the end of the file.
     pub fn write(&mut self, offset: usize, values: &[u8]) {
         self.data[offset..offset + values.len()].copy_from_slice(values);
     }

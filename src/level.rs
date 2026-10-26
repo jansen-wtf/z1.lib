@@ -10,13 +10,17 @@ use crate::tables::{self, Tables};
 /// start room, map, item positions. The game copies the current one to
 /// battery RAM at `$6B81`.
 pub const BLOCKS: usize = 0x19313;
+/// The length of one block.
 pub const BLOCK_LEN: usize = 0xfc;
-/// In a block: the column the pause screen map starts at, the start room,
-/// and the map itself, one byte per column with row 0 in bit 7.
+/// In a block: the column the pause screen map starts at.
 pub const MAP_START_COLUMN: usize = 0x2a;
+/// In a block: the room Link enters the level in.
 pub const START_ROOM: usize = 0x2c;
+/// In a block: the pause screen map, one byte per column with row 0 in
+/// bit 7.
 pub const MAP: usize = 0x3c;
 
+/// One block, from the ROM or from battery RAM.
 pub type Block = [u8; BLOCK_LEN];
 
 /// The block of `level`, 0 for the overworld.
@@ -29,12 +33,14 @@ pub fn block(rom: Bytes<'_>, level: usize) -> &Block {
 }
 
 /// The room tables of `level` (1-9) in the ROM, of the first or second
-/// quest. Levels 1-6 share theirs, as do levels 7-9.
+/// quest. Levels 1-6 share theirs, as do levels 7-9; past 9 counts as
+/// 7-9.
 pub fn tables(rom: Bytes<'_>, level: usize, second_quest: bool) -> Tables<'_> {
     let group = usize::from(level >= 7) + if second_quest { 2 } else { 0 };
     Tables::in_rom(rom, tables::LEVELS + tables::LEN * group)
 }
 
+/// The room Link enters the level in.
 pub fn start_room(block: &Block) -> u8 {
     block[START_ROOM]
 }
@@ -101,8 +107,12 @@ pub fn rooms(tables: Tables<'_>, block: &Block, others: &BTreeSet<u8>) -> BTreeS
 /// staircase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Placed {
+    /// The room, or for an item down a staircase the room the staircase
+    /// stands in.
     pub room: u8,
+    /// The item id.
     pub item: u8,
+    /// Whether the item is down the room's staircase.
     pub stairs: bool,
 }
 

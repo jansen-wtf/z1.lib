@@ -31,12 +31,16 @@ const SPRITE_PALETTES: usize = 0x19323;
 
 /// An RGB picture, one `0xRRGGBB` per pixel.
 pub struct Image {
+    /// Width in pixels.
     pub width: usize,
+    /// Height in pixels.
     pub height: usize,
+    /// Row after row, `width` pixels each.
     pub pixels: Vec<u32>,
 }
 
 impl Image {
+    /// A picture all in `color`.
     pub fn new(width: usize, height: usize, color: u32) -> Self {
         Image {
             width,
@@ -52,6 +56,7 @@ impl Image {
         }
     }
 
+    /// Fills a rectangle; what lies outside the picture is dropped.
     pub fn fill(&mut self, x: i32, y: i32, w: i32, h: i32, color: u32) {
         for j in 0..h {
             for i in 0..w {
@@ -151,6 +156,10 @@ fn tile_pixel(rom: Bytes<'_>, at: usize, x: usize, y: usize) -> usize {
 }
 
 /// Paints overworld screen `screen`, 256 x 176 pixels, at `x0`, `y0`.
+///
+/// # Panics
+/// When `screen` is so far past 0x7F that its table entry lies past the
+/// end of the ROM.
 pub fn paint_screen(rom: Bytes<'_>, screen: usize, image: &mut Image, x0: i32, y0: i32) {
     let s = decode_screen(rom, screen);
     for r in 0..22 {

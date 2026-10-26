@@ -6,11 +6,22 @@ use crate::rom::Bytes;
 
 /// The six tables together.
 pub const LEN: usize = 0x300;
+/// Table A: in levels the north and south doors, under a room the room of
+/// one staircase.
 pub const A: usize = 0x000;
+/// Table B: in levels the west and east doors, under a room the room of the
+/// other staircase; on the overworld the screen's cave.
 pub const B: usize = 0x080;
+/// Table C: in levels the room's monster code in bits 0-5, with bit 7 of
+/// table D for the codes from 0x40 on.
 pub const C: usize = 0x100;
+/// Table D: in levels the room's layout.
 pub const D: usize = 0x180;
+/// Table E: in levels the room's item; on the overworld, from cave 16 on,
+/// the caves' items and prices.
 pub const E: usize = 0x200;
+/// Table F: on the overworld, bit 7 set when the screen's cave does not
+/// count in this quest.
 pub const F: usize = 0x280;
 
 /// The overworld's tables in the ROM.
@@ -23,16 +34,18 @@ pub const LEVELS: usize = 0x18710;
 pub const NO_ROOM_ITEM: u8 = 3;
 /// A cave's item when it has none.
 pub const NO_CAVE_ITEM: u8 = 0x3f;
-/// Room layouts (table D) a staircase leads down into: a cellar with an
-/// item, and a passage between two rooms.
+/// The room layout (table D) of a cellar with an item down a staircase.
 pub const ITEM_CELLAR: u8 = 0x3e;
+/// The room layout of a passage between two rooms, down a staircase.
 pub const PASSAGE: u8 = 0x3f;
-/// Door types of a wall (three bits each in tables A and B).
+/// The door type (three bits in table A or B) of a plain wall.
 pub const WALL: u8 = 1;
+/// The door type of a wall to bomb.
 pub const BOMB_WALL: u8 = 4;
 
-/// Overworld: per cave from cave 16 on, three items, then three prices.
+/// Overworld: per cave from cave 16 on, its three items.
 pub const CAVE_ITEMS: usize = 0x200;
+/// Overworld: per cave from cave 16 on, the prices of its three items.
 pub const CAVE_PRICES: usize = 0x23c;
 const FIRST_CAVE_WITH_ITEMS: u8 = 16;
 const LAST_CAVE: u8 = 35;
@@ -56,6 +69,7 @@ impl<'a> Tables<'a> {
         Tables(rom.as_slice()[at..at + LEN].try_into().unwrap())
     }
 
+    /// The six tables, `LEN` bytes.
     pub fn as_slice(&self) -> &'a [u8] {
         self.0
     }
@@ -70,6 +84,8 @@ impl<'a> Tables<'a> {
         self.byte(E, room) & 0x1f
     }
 
+    /// A level room's layout: its walls inside, or `ITEM_CELLAR` or
+    /// `PASSAGE` for the rooms down a staircase.
     pub fn layout(&self, room: u8) -> u8 {
         self.byte(D, room) & 0x3f
     }

@@ -41,6 +41,7 @@ const MIXED_GROUPS: usize = 0x1474f;
 const DOOR_LOOK: [usize; 8] = [0, 3, 3, 3, 3, 1, 1, 2];
 const BOMBED: usize = 4;
 
+/// A dungeon room as the game writes it to the name table.
 pub struct Room {
     /// 22 rows of 32 tiles
     pub tiles: [[u8; 32]; 22],
@@ -55,6 +56,10 @@ pub fn tables(level: usize, second_quest: bool) -> usize {
 }
 
 /// Byte `room` of room table `t` (0 = A ... 5 = F).
+///
+/// # Panics
+/// When `tables` is no offset `tables()` gives, or `t` past 5, or `room`
+/// past 0x7F, so far that the byte lies past the end of the ROM.
 pub fn grid(rom: Bytes<'_>, tables: usize, t: usize, room: usize) -> u8 {
     rom[GRID + tables + 0x80 * t + room]
 }
@@ -109,6 +114,10 @@ fn mirror(t: u8, h: bool, v: bool) -> u8 {
 
 /// Room `room` of `level` from the given room tables, as the game draws it
 /// (`map` false) or with bomb walls blown open (`map` true).
+///
+/// # Panics
+/// When `tables` is no offset `tables()` gives, or `room` so far past
+/// 0x7F that its bytes lie past the end of the ROM.
 pub fn decode_room(rom: Bytes<'_>, tables: usize, room: usize, map: bool) -> Room {
     let a = grid(rom, tables, 0, room);
     let b = grid(rom, tables, 1, room);
@@ -211,6 +220,10 @@ fn color(rom: Bytes<'_>, level: usize, sprite: bool, palette: usize, index: usiz
 }
 
 /// Paints room `room` of `level`, 256 x 176 pixels, at `x0`, `y0`.
+///
+/// # Panics
+/// When `level` is so far past 9 that its block lies past the end of the
+/// ROM; from 10 on it reads other data.
 pub fn paint_room(rom: Bytes<'_>, level: usize, room: &Room, image: &mut Image, x0: i32, y0: i32) {
     for r in 0..22 {
         for c in 0..32 {
@@ -232,6 +245,10 @@ pub fn paint_room(rom: Bytes<'_>, level: usize, room: &Room, image: &mut Image, 
 
 /// One 8 x 16 sprite as the game puts it in OAM: `attr` holds the palette
 /// in bits 0-1 and the mirroring in bits 6 and 7.
+///
+/// # Panics
+/// When `level` is so far past 9 that its block lies past the end of the
+/// ROM; from 10 on it reads other data.
 pub fn draw_sprite(
     rom: Bytes<'_>,
     level: usize,
@@ -262,6 +279,10 @@ pub fn draw_sprite(
 
 /// The text old men say, as the game writes it: bytes in the game's font,
 /// bit 7 ending the first line, bit 6 the second, both the text.
+///
+/// # Panics
+/// When `level` is so far past 9 that its block lies past the end of the
+/// ROM; from 10 on it reads other data.
 pub fn draw_text_bytes(
     rom: Bytes<'_>,
     level: usize,
@@ -300,12 +321,20 @@ pub fn draw_text_bytes(
 
 /// Where the item of a room lies, on the 256 x 176 room: the level's four
 /// positions as `0xXY` in 16-pixel steps, chosen by table F bits 4-5.
+///
+/// # Panics
+/// When `level` is so far past 9 that its block lies past the end of the
+/// ROM; from 10 on it reads other data.
 pub fn item_position(rom: Bytes<'_>, level: usize, f: u8) -> (i32, i32) {
     let p = rom[level_block(level) + 0x26 + usize::from((f >> 4) & 3)];
     (i32::from(p & 0xf0), i32::from(p & 0x0f) * 16 - 64)
 }
 
 /// How many monsters a room's table C bits 6-7 ask for in `level`.
+///
+/// # Panics
+/// When `level` is so far past 9 that its block lies past the end of the
+/// ROM; from 10 on it reads other data.
 pub fn monster_count(rom: Bytes<'_>, level: usize, c: u8) -> usize {
     usize::from(rom[level_block(level) + 0x21 + usize::from(c >> 6)])
 }
@@ -360,6 +389,10 @@ const ITEM_SPRITES: [&[(i32, u8, u8)]; 32] = [
 ];
 
 /// Draws dungeon item `item` with its position at `x`, `y` on the room.
+///
+/// # Panics
+/// When `level` is so far past 9 that its block lies past the end of the
+/// ROM; from 10 on it reads other data.
 pub fn draw_item(rom: Bytes<'_>, level: usize, image: &mut Image, item: u8, x: i32, y: i32) {
     if let Some(sprites) = ITEM_SPRITES.get(usize::from(item)) {
         for &(dx, tile, attr) in sprites.iter() {
@@ -375,9 +408,14 @@ pub fn draw_item(rom: Bytes<'_>, level: usize, image: &mut Image, item: u8, x: i
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Sprite {
+    /// x in pixels: in the room for `Monster::Fixed`, from the monster for
+    /// `Monster::Icon`.
     pub x: i32,
+    /// y in pixels, the same way.
     pub y: i32,
+    /// The entry of the object tile table the tile comes from, or 0.
     pub at: usize,
+    /// The tile, or what to add to the table's entry.
     pub tile: u8,
     /// OAM attributes: palette in bits 0-1, mirrored in bit 6, upside down
     /// in bit 7.
@@ -394,8 +432,10 @@ const fn s(x: i32, y: i32, at: usize, tile: u8, attr: u8) -> Sprite {
     }
 }
 
+/// How the game draws a monster, from its code.
 #[non_exhaustive]
 pub enum Monster {
+    /// Nothing to draw.
     None,
     /// Drawn in the room at its own place.
     Fixed(&'static [Sprite]),
@@ -404,6 +444,10 @@ pub enum Monster {
 }
 
 /// Draws a monster's sprite with `x`, `y` as its origin.
+///
+/// # Panics
+/// When `level` is so far past 9 that its block lies past the end of the
+/// ROM; from 10 on it reads other data.
 pub fn draw_monster_sprite(
     rom: Bytes<'_>,
     level: usize,
