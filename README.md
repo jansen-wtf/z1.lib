@@ -106,7 +106,7 @@ ROM.
 
 ```sh
 cargo test                     # with the README's examples
-Z1R_ROM=zelda.nes cargo test   # and the checks against the original ROM
+Z1R_ROM=zelda.nes cargo test -- --include-ignored   # and the checks against the original ROM
 cargo clippy --all-targets
 ```
 

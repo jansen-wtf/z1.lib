@@ -82,12 +82,12 @@ pub fn book_is_atlas(rom: Bytes<'_>) -> bool {
 mod tests {
     use super::*;
 
-    /// Needs the original ROM in Z1R_ROM; skipped without it.
+    /// Needs the original ROM in Z1R_ROM.
     #[test]
+    #[ignore = "needs the original ROM in Z1R_ROM"]
     fn the_original_wants_eight_pieces() {
-        let Some(data) = std::env::var_os("Z1R_ROM").and_then(|p| std::fs::read(p).ok()) else {
-            return;
-        };
+        let data = std::fs::read(std::env::var_os("Z1R_ROM").expect("Z1R_ROM"))
+            .expect("the ROM in Z1R_ROM");
         let rom = Bytes::new(&data).unwrap();
         assert_eq!(gate(rom), Gate::Count(8));
         assert_eq!(start_inventory(rom), None);

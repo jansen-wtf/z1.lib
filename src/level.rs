@@ -142,12 +142,12 @@ mod tests {
     use super::*;
     use crate::item::{HEART_CONTAINER, TRIFORCE};
 
-    /// Needs the original ROM in Z1R_ROM; skipped without it.
+    /// Needs the original ROM in Z1R_ROM.
     #[test]
+    #[ignore = "needs the original ROM in Z1R_ROM"]
     fn the_original_levels_hold_their_known_items() {
-        let Some(data) = std::env::var_os("Z1R_ROM").and_then(|p| std::fs::read(p).ok()) else {
-            return;
-        };
+        let data = std::fs::read(std::env::var_os("Z1R_ROM").expect("Z1R_ROM"))
+            .expect("the ROM in Z1R_ROM");
         let rom = Bytes::new(&data).unwrap();
         let found = |level: usize| {
             let group = if level <= 6 { 1..=6 } else { 7..=9 };
