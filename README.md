@@ -43,40 +43,49 @@ Add it to `Cargo.toml`, pinned to a tag:
 
 ```toml
 [dependencies]
-z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "0.11.0" }
+z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "1.0.0" }
 ```
 
 Draw an overworld screen from a ROM, original or randomized:
 
-```rust
-let data = std::fs::read("zelda.nes")?;
-let rom = z1::rom::Bytes::new(&data)?;
-let mut screen = z1::gfx::Image::new(256, 176, 0);
-z1::gfx::paint_screen(rom, 119, &mut screen, 0, 0);
-std::fs::write("screen.png", screen.to_png())?;
+```rust no_run
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let data = std::fs::read("zelda.nes")?;
+    let rom = z1::rom::Bytes::new(&data)?;
+    let mut screen = z1::gfx::Image::new(256, 176, 0);
+    z1::gfx::paint_screen(rom, 119, &mut screen, 0, 0);
+    std::fs::write("screen.png", screen.to_png())?;
+    Ok(())
+}
 ```
 
 List what lies in level 1 of the first quest:
 
-```rust
+```rust no_run
 use z1::level;
 
-let tables = level::tables(rom, 1, false);
-let rooms = level::rooms(tables, level::block(rom, 1), &Default::default());
-for placed in level::items(tables, &rooms) {
-    println!("item {} in room {:#04x}{}", placed.item, placed.room,
-        if placed.stairs { ", down the stairs" } else { "" });
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let data = std::fs::read("zelda.nes")?;
+    let rom = z1::rom::Bytes::new(&data)?;
+    let tables = level::tables(rom, 1, false);
+    let rooms = level::rooms(tables, level::block(rom, 1), &Default::default());
+    for placed in level::items(tables, &rooms) {
+        let stairs = if placed.stairs { ", down the stairs" } else { "" };
+        println!("item {} in room {:#04x}{stairs}", placed.item, placed.room);
+    }
+    Ok(())
 }
 ```
 
 Read a randomizer seed's flags:
 
 ```rust
-use z1::flags::{Flags, check, combo};
+use z1::flags::{Check, Flags, check, combo};
 
 let flags = Flags::parse("11fvaXsSNVMgaizTfEEM6gt!QwVfNfjfELUj7RA");
 let second_quest = flags.combo(combo::QUEST_NUMBER) == 1;
-let race_rom = flags.check(check::TOURNEY_MODE);
+let race_rom = flags.check(check::TOURNEY_MODE) == Check::On;
+assert!(second_quest && !race_rom);
 ```
 
 Every function that reads the ROM takes `z1::rom::Bytes`: any Zelda ROM,
@@ -96,9 +105,13 @@ ROM.
 ## Development
 
 ```sh
-cargo test
+cargo test                     # with the README's examples
+Z1R_ROM=zelda.nes cargo test   # and the checks against the original ROM
 cargo clippy --all-targets
 ```
+
+Every public item has its documentation (`cargo doc --open`); a missing one
+fails the CI.
 
 ## Used by
 
