@@ -146,6 +146,7 @@ impl<'a> From<&'a Rom> for Bytes<'a> {
 #[derive(Clone)]
 pub struct Rom {
     data: Vec<u8>,
+    revision: Revision,
 }
 
 impl Rom {
@@ -160,22 +161,18 @@ impl Rom {
         let sum = sha1_smol::Sha1::from(&data[HEADER_LEN..])
             .digest()
             .to_string();
-        if sum != PRG0_BODY_SHA1 && sum != REV1_BODY_SHA1 {
-            return Err(RomError::Checksum(sum));
-        }
-        Ok(Rom { data })
+        let revision = match sum.as_str() {
+            PRG0_BODY_SHA1 => Revision::Prg0,
+            REV1_BODY_SHA1 => Revision::Rev1,
+            _ => return Err(RomError::Checksum(sum)),
+        };
+        Ok(Rom { data, revision })
     }
 
-    /// Which release this is.
+    /// Which release this was loaded as; bytes written since do not change
+    /// it.
     pub fn revision(&self) -> Revision {
-        let sum = sha1_smol::Sha1::from(&self.data[HEADER_LEN..])
-            .digest()
-            .to_string();
-        if sum == PRG0_BODY_SHA1 {
-            Revision::Prg0
-        } else {
-            Revision::Rev1
-        }
+        self.revision
     }
 
     /// The whole file.
@@ -265,6 +262,16 @@ mod tests {
         let mut data = vec![0; FILE_LEN];
         data[..4].copy_from_slice(b"NES\x1a");
         assert!(matches!(Rom::from_bytes(data), Err(RomError::Checksum(_))));
+    }
+
+    #[test]
+    fn revision_stays_what_was_loaded() {
+        let mut rom = Rom {
+            data: blank(),
+            revision: Revision::Prg0,
+        };
+        rom.set(HEADER_LEN, 0xff);
+        assert_eq!(rom.revision(), Revision::Prg0);
     }
 
     fn blank() -> Vec<u8> {
