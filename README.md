@@ -32,8 +32,10 @@ What the game keeps is told apart from what a program makes of it: the
 library says where things are, not what a player may see.
 
 All offsets are file offsets including the 16-byte iNES header.
-[docs/rom-graphics.md](docs/rom-graphics.md) says where the game keeps what
-it draws, and how that was measured.
+[docs/rom-layout.md](docs/rom-layout.md) says where the game keeps its
+tables, levels and overworld, and what z1r's changes and flags mean;
+[docs/rom-graphics.md](docs/rom-graphics.md) where it keeps what it draws,
+and how that was measured.
 
 ## Using it
 
