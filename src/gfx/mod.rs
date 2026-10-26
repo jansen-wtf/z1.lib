@@ -104,8 +104,10 @@ fn sprite_tile(tile: u8) -> usize {
     }
 }
 
-/// Draws one 8 x 16 sprite with its top left at `x`, `y`.
-fn draw_sprite(
+/// Draws one 8 x 16 overworld sprite with its top left at `x`, `y`, in
+/// sprite palette `palette` (0 Link's, 1 blue and white, 2 red and white),
+/// mirrored when `flip`.
+pub fn draw_sprite(
     rom: Bytes<'_>,
     image: &mut Image,
     tile: u8,
