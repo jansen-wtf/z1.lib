@@ -1,6 +1,6 @@
 [package]
 name = "z1"
-version = "0.11.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
 description = "What The Legend of Zelda (NES) and the Zelda Randomizer keep in a ROM: graphics, ROM layout, the flag string"

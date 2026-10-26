@@ -25,7 +25,7 @@ checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "z1"
-version = "0.11.0"
+version = "1.0.0"
 dependencies = [
  "miniz_oxide",
  "sha1_smol",
