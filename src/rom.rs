@@ -19,6 +19,7 @@ pub const REV1_BODY_SHA1: &str = "be2f5dc8c5ba8ec1a344a71f9fb204750af24fe7";
 /// made for PRG0: on Rev 1 the seed and version lines of its title screen
 /// land inside the logo's frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Revision {
     Prg0,
     Rev1,
@@ -51,6 +52,7 @@ impl Revision {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum RomError {
     Io(std::io::Error),
     Size(usize),

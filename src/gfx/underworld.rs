@@ -374,6 +374,7 @@ pub fn draw_item(rom: &[u8], level: usize, image: &mut Image, item: u8, x: i32, 
 /// that byte plus `tile`; with `at` 0, `tile` is the tile itself.
 pub type Sprite = (i32, i32, usize, u8, u8);
 
+#[non_exhaustive]
 pub enum Monster {
     None,
     /// Drawn in the room at its own place.
