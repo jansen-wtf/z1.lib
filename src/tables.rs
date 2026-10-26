@@ -32,8 +32,8 @@ pub const WALL: u8 = 1;
 pub const BOMB_WALL: u8 = 4;
 
 /// Overworld: per cave from cave 16 on, three items, then three prices.
-const CAVE_ITEMS: usize = 0x200;
-const CAVE_PRICES: usize = 0x23c;
+pub const CAVE_ITEMS: usize = 0x200;
+pub const CAVE_PRICES: usize = 0x23c;
 const FIRST_CAVE_WITH_ITEMS: u8 = 16;
 const LAST_CAVE: u8 = 35;
 
