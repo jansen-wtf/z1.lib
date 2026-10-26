@@ -177,8 +177,8 @@ pub mod check {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Flags {
-    pub combos: [u32; combo::COUNT],
-    pub checks: [Check; check::COUNT],
+    combos: [u32; combo::COUNT],
+    checks: [Check; check::COUNT],
 }
 
 impl Default for Flags {
@@ -268,6 +268,16 @@ impl Flags {
     pub fn check(&self, index: usize) -> Check {
         self.checks[index]
     }
+
+    /// Sets a list as it is, even past its last entry: the flag string
+    /// keeps such a value, and the original reads it as the last entry.
+    pub fn set_combo(&mut self, index: usize, value: u32) {
+        self.combos[index] = value;
+    }
+
+    pub fn set_check(&mut self, index: usize, state: Check) {
+        self.checks[index] = state;
+    }
 }
 
 impl fmt::Display for Flags {
@@ -318,9 +328,9 @@ mod tests {
     #[test]
     fn first_list_is_least_significant() {
         let mut flags = Flags::default();
-        flags.combos[combo::QUEST_NUMBER] = 3;
+        flags.set_combo(combo::QUEST_NUMBER, 3);
         assert_eq!(flags.to_string(), "3");
-        flags.checks[check::UPDATE_WHISTLE] = Check::On;
+        flags.set_check(check::UPDATE_WHISTLE, Check::On);
         assert_eq!(Flags::parse(&flags.to_string()), flags);
     }
 
