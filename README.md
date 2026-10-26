@@ -39,8 +39,9 @@ z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "0.9.0" }
 Draw an overworld screen from a ROM, original or randomized:
 
 ```rust
-let rom = std::fs::read("zelda.nes")?;
-let screen = z1::gfx::picture(&rom, "screen:119").unwrap();
+let data = std::fs::read("zelda.nes")?;
+let rom = z1::rom::Bytes::new(&data)?;
+let screen = z1::gfx::picture(rom, "screen:119").unwrap();
 std::fs::write("screen.png", screen.to_png())?;
 ```
 
@@ -54,8 +55,10 @@ let second_quest = flags.combo(combo::QUEST_NUMBER) == 1;
 let race_rom = flags.check(check::TOURNEY_MODE);
 ```
 
-`z1::rom::Rom::load` accepts only an unmodified ROM; the drawing and
-reading functions take the bytes of any ROM.
+Every function that reads the ROM takes `z1::rom::Bytes`: any Zelda ROM,
+original or randomized, checked once for its size and iNES header, so no
+read can run past its end. `z1::rom::Rom::load` accepts only an unmodified
+ROM.
 
 ## Ground rules
 

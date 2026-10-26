@@ -10,6 +10,7 @@
 //! - `items:<item>,...`: items in a row
 
 use super::{Image, NES, decode_screen, draw_item, draw_sprite, paint_screen};
+use crate::rom::Bytes;
 
 /// The screens of the armos that hide stairs, the item's one first, and
 /// their x positions.
@@ -28,7 +29,7 @@ const BLACK: u32 = 0x000000;
 const GOLD: u32 = NES[0x28];
 
 /// The picture a spec names, or `None` for a spec it does not know.
-pub fn picture(rom: &[u8], spec: &str) -> Option<Image> {
+pub fn picture(rom: Bytes<'_>, spec: &str) -> Option<Image> {
     let (kind, arg) = spec.split_once(':').unwrap_or((spec, ""));
     let numbers = || -> Option<Vec<i32>> {
         arg.split(',')
@@ -67,7 +68,7 @@ pub fn picture(rom: &[u8], spec: &str) -> Option<Image> {
     }
 }
 
-fn screen_picture(rom: &[u8], screen: usize) -> Image {
+fn screen_picture(rom: Bytes<'_>, screen: usize) -> Image {
     let mut image = Image::new(256, 176, BLACK);
     paint_screen(rom, screen, &mut image, 0, 0);
     image
@@ -87,7 +88,7 @@ fn frame(image: &mut Image, x: i32, y: i32) {
 
 /// The old man (tile 98, mirrored) between two fires (tiles 5E and 5C,
 /// mirrored), all in palette 2, as the game draws a cave; items below.
-fn cave_picture(rom: &[u8], items: &[i32]) -> Image {
+fn cave_picture(rom: Bytes<'_>, items: &[i32]) -> Image {
     let width = 128.max(24 * items.len() as i32 + 16);
     let mut image = Image::new(width as usize, 48, BLACK);
     let mid = width / 2;
@@ -101,13 +102,13 @@ fn cave_picture(rom: &[u8], items: &[i32]) -> Image {
     image
 }
 
-fn items_picture(rom: &[u8], items: &[i32]) -> Image {
+fn items_picture(rom: Bytes<'_>, items: &[i32]) -> Image {
     let mut image = Image::new(24 * items.len(), 20, BLACK);
     row_of_items(rom, &mut image, items, 2);
     image
 }
 
-fn row_of_items(rom: &[u8], image: &mut Image, items: &[i32], y: i32) {
+fn row_of_items(rom: Bytes<'_>, image: &mut Image, items: &[i32], y: i32) {
     let first = (image.width as i32 - 24 * items.len() as i32) / 2 + 12;
     for (k, &item) in items.iter().enumerate() {
         draw_item(rom, image, item, first + 24 * k as i32, y);
@@ -120,10 +121,12 @@ mod tests {
 
     #[test]
     fn unknown_specs_give_nothing() {
-        let rom = vec![0u8; 0x20010];
-        assert!(picture(&rom, "screen:200").is_none());
-        assert!(picture(&rom, "items:").is_none());
-        assert!(picture(&rom, "nonsense").is_none());
-        assert_eq!(picture(&rom, "items:1,2").map(|i| i.width), Some(48));
+        let mut data = vec![0u8; crate::rom::FILE_LEN];
+        data[..4].copy_from_slice(b"NES\x1a");
+        let rom = Bytes::new(&data).unwrap();
+        assert!(picture(rom, "screen:200").is_none());
+        assert!(picture(rom, "items:").is_none());
+        assert!(picture(rom, "nonsense").is_none());
+        assert_eq!(picture(rom, "items:1,2").map(|i| i.width), Some(48));
     }
 }

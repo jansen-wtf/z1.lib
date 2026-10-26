@@ -4,6 +4,7 @@
 //! `docs/rom-graphics.md`.
 
 use super::{Image, NES, tile_pixel};
+use crate::rom::Bytes;
 
 /// 10 pointers into the column heap, in bank 5.
 const COLUMN_DIRECTORY: usize = 0x16714;
@@ -54,7 +55,7 @@ pub fn tables(level: usize, second_quest: bool) -> usize {
 }
 
 /// Byte `room` of room table `t` (0 = A ... 5 = F).
-pub fn grid(rom: &[u8], tables: usize, t: usize, room: usize) -> u8 {
+pub fn grid(rom: Bytes<'_>, tables: usize, t: usize, room: usize) -> u8 {
     rom[GRID + tables + 0x80 * t + room]
 }
 
@@ -64,7 +65,7 @@ fn level_block(level: usize) -> usize {
 
 /// Like the overworld's, but a column is 7 squares, each byte a square in
 /// bits 0-3 repeated as often as bits 4-6 say, plus once.
-fn column(rom: &[u8], id: u8) -> [u8; 7] {
+fn column(rom: Bytes<'_>, id: u8) -> [u8; 7] {
     let d = COLUMN_DIRECTORY + 2 * usize::from(id >> 4);
     let mut p = usize::from(rom[d]) + (usize::from(rom[d + 1]) << 8) + BANK5;
     let mut starts = 0;
@@ -108,7 +109,7 @@ fn mirror(t: u8, h: bool, v: bool) -> u8 {
 
 /// Room `room` of `level` from the given room tables, as the game draws it
 /// (`map` false) or with bomb walls blown open (`map` true).
-pub fn decode_room(rom: &[u8], tables: usize, room: usize, map: bool) -> Room {
+pub fn decode_room(rom: Bytes<'_>, tables: usize, room: usize, map: bool) -> Room {
     let a = grid(rom, tables, 0, room);
     let b = grid(rom, tables, 1, room);
     let d = grid(rom, tables, 3, room);
@@ -184,7 +185,7 @@ fn background_tile(tile: u8) -> usize {
 }
 
 /// Sprite tile `t` (the top of an 8 x 16 pair) in `level`.
-fn sprite_tile(rom: &[u8], level: usize, tile: u8) -> usize {
+fn sprite_tile(rom: Bytes<'_>, level: usize, tile: u8) -> usize {
     let t = usize::from(tile);
     let pointer = |table: usize| {
         let at = table + 2 * level;
@@ -199,7 +200,7 @@ fn sprite_tile(rom: &[u8], level: usize, tile: u8) -> usize {
     }
 }
 
-fn color(rom: &[u8], level: usize, sprite: bool, palette: usize, index: usize) -> u32 {
+fn color(rom: Bytes<'_>, level: usize, sprite: bool, palette: usize, index: usize) -> u32 {
     let base = level_block(level) + if sprite { 16 } else { 0 };
     let at = if index == 0 {
         base
@@ -210,7 +211,7 @@ fn color(rom: &[u8], level: usize, sprite: bool, palette: usize, index: usize) -
 }
 
 /// Paints room `room` of `level`, 256 x 176 pixels, at `x0`, `y0`.
-pub fn paint_room(rom: &[u8], level: usize, room: &Room, image: &mut Image, x0: i32, y0: i32) {
+pub fn paint_room(rom: Bytes<'_>, level: usize, room: &Room, image: &mut Image, x0: i32, y0: i32) {
     for r in 0..22 {
         for c in 0..32 {
             let at = background_tile(room.tiles[r][c]);
@@ -232,7 +233,7 @@ pub fn paint_room(rom: &[u8], level: usize, room: &Room, image: &mut Image, x0: 
 /// One 8 x 16 sprite as the game puts it in OAM: `attr` holds the palette
 /// in bits 0-1 and the mirroring in bits 6 and 7.
 pub fn draw_sprite(
-    rom: &[u8],
+    rom: Bytes<'_>,
     level: usize,
     image: &mut Image,
     tile: u8,
@@ -262,7 +263,7 @@ pub fn draw_sprite(
 /// The text old men say, as the game writes it: bytes in the game's font,
 /// bit 7 ending the first line, bit 6 the second, both the text.
 pub fn draw_text_bytes(
-    rom: &[u8],
+    rom: Bytes<'_>,
     level: usize,
     image: &mut Image,
     bytes: &[u8],
@@ -299,20 +300,20 @@ pub fn draw_text_bytes(
 
 /// Where the item of a room lies, on the 256 x 176 room: the level's four
 /// positions as `0xXY` in 16-pixel steps, chosen by table F bits 4-5.
-pub fn item_position(rom: &[u8], level: usize, f: u8) -> (i32, i32) {
+pub fn item_position(rom: Bytes<'_>, level: usize, f: u8) -> (i32, i32) {
     let p = rom[level_block(level) + 0x26 + usize::from((f >> 4) & 3)];
     (i32::from(p & 0xf0), i32::from(p & 0x0f) * 16 - 64)
 }
 
 /// How many monsters a room's table C bits 6-7 ask for in `level`.
-pub fn monster_count(rom: &[u8], level: usize, c: u8) -> usize {
+pub fn monster_count(rom: Bytes<'_>, level: usize, c: u8) -> usize {
     usize::from(rom[level_block(level) + 0x21 + usize::from(c >> 6)])
 }
 
 /// The monsters of a room with `count` of them: one code `count` times, or
 /// the first `count` of a mixed group, read on past its own list as the
 /// game does.
-pub fn monster_codes(rom: &[u8], code: u8, count: usize) -> Vec<u8> {
+pub fn monster_codes(rom: Bytes<'_>, code: u8, count: usize) -> Vec<u8> {
     if code < 0x62 {
         return vec![code; count];
     }
@@ -359,7 +360,7 @@ const ITEM_SPRITES: [&[(i32, u8, u8)]; 32] = [
 ];
 
 /// Draws dungeon item `item` with its position at `x`, `y` on the room.
-pub fn draw_item(rom: &[u8], level: usize, image: &mut Image, item: u8, x: i32, y: i32) {
+pub fn draw_item(rom: Bytes<'_>, level: usize, image: &mut Image, item: u8, x: i32, y: i32) {
     if let Some(sprites) = ITEM_SPRITES.get(usize::from(item)) {
         for &(dx, tile, attr) in sprites.iter() {
             draw_sprite(rom, level, image, tile, attr, x + dx, y + 1);
@@ -404,7 +405,7 @@ pub enum Monster {
 
 /// Draws a monster's sprite with `x`, `y` as its origin.
 pub fn draw_monster_sprite(
-    rom: &[u8],
+    rom: Bytes<'_>,
     level: usize,
     image: &mut Image,
     sprite: Sprite,

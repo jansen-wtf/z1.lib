@@ -8,6 +8,8 @@ pub mod pictures;
 mod png;
 pub mod underworld;
 
+use crate::rom::Bytes;
+
 pub use overworld::{Screen, decode_screen};
 pub use pictures::picture;
 
@@ -74,7 +76,7 @@ impl Image {
 }
 
 /// The color of palette entry `index` (0-3) in a palette table.
-fn palette_color(rom: &[u8], table: usize, palette: usize, index: usize) -> u32 {
+fn palette_color(rom: Bytes<'_>, table: usize, palette: usize, index: usize) -> u32 {
     let entry = if index == 0 {
         table
     } else {
@@ -105,7 +107,7 @@ fn sprite_tile(tile: u8) -> usize {
 
 /// Draws one 8 x 16 sprite with its top left at `x`, `y`.
 fn draw_sprite(
-    rom: &[u8],
+    rom: Bytes<'_>,
     image: &mut Image,
     tile: u8,
     palette: usize,
@@ -119,7 +121,7 @@ fn draw_sprite(
 
 /// Draws one 8 x 16 sprite in the given colors 1-3.
 fn draw_sprite_in(
-    rom: &[u8],
+    rom: Bytes<'_>,
     image: &mut Image,
     tile: u8,
     colors: [u32; 3],
@@ -141,14 +143,14 @@ fn draw_sprite_in(
 }
 
 /// The two-bit color of pixel `x`, `y` of the tile data at `at`.
-fn tile_pixel(rom: &[u8], at: usize, x: usize, y: usize) -> usize {
+fn tile_pixel(rom: Bytes<'_>, at: usize, x: usize, y: usize) -> usize {
     let lo = rom[at + y];
     let hi = rom[at + y + 8];
     usize::from((lo >> (7 - x)) & 1) | (usize::from((hi >> (7 - x)) & 1) << 1)
 }
 
 /// Paints overworld screen `screen`, 256 x 176 pixels, at `x0`, `y0`.
-pub fn paint_screen(rom: &[u8], screen: usize, image: &mut Image, x0: i32, y0: i32) {
+pub fn paint_screen(rom: Bytes<'_>, screen: usize, image: &mut Image, x0: i32, y0: i32) {
     let s = decode_screen(rom, screen);
     for r in 0..22 {
         for c in 0..32 {
@@ -208,7 +210,7 @@ const ITEM_SPRITES: [&[(i32, u8, usize, bool)]; 36] = [
 
 /// Draws item `item` as the game does, its 8-pixel column centered on `cx`
 /// and its top at `y`. Unknown items draw nothing.
-pub fn draw_item(rom: &[u8], image: &mut Image, item: i32, cx: i32, y: i32) {
+pub fn draw_item(rom: Bytes<'_>, image: &mut Image, item: i32, cx: i32, y: i32) {
     let Some(sprites) = usize::try_from(item).ok().and_then(|i| ITEM_SPRITES.get(i)) else {
         return;
     };
@@ -222,7 +224,7 @@ const START_TUNIC: usize = 41623;
 
 /// Link facing down (tile 5A, and 08 mirrored), as he stands on the start
 /// screen, in his tunic color or the one given.
-pub fn link_picture(rom: &[u8], tunic: Option<u8>) -> Image {
+pub fn link_picture(rom: Bytes<'_>, tunic: Option<u8>) -> Image {
     let tunic = tunic.unwrap_or(rom[START_TUNIC]);
     let colors = [
         NES[usize::from(tunic & 0x3f)],
@@ -236,7 +238,7 @@ pub fn link_picture(rom: &[u8], tunic: Option<u8>) -> Image {
 }
 
 /// The status bar's heart (background tile F2) in an NES color.
-pub fn heart_picture(rom: &[u8], color: u8) -> Image {
+pub fn heart_picture(rom: Bytes<'_>, color: u8) -> Image {
     let mut image = Image::new(16, 12, 0x000000);
     let at = background_tile(0xf2);
     for y in 0..8 {
@@ -268,7 +270,7 @@ fn font_tile(ch: char) -> u8 {
 }
 
 /// Writes `text` in the game's font, 8 pixels per character.
-pub fn draw_text(rom: &[u8], image: &mut Image, text: &str, x: i32, y: i32, color: u32) {
+pub fn draw_text(rom: Bytes<'_>, image: &mut Image, text: &str, x: i32, y: i32, color: u32) {
     for (k, ch) in text.chars().enumerate() {
         let at = background_tile(font_tile(ch));
         for row in 0..8 {

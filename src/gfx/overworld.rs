@@ -1,6 +1,8 @@
 //! Overworld screens as the game writes them to the name table: 16 columns
 //! of 11 squares, each square 2 x 2 tiles.
 
+use crate::rom::Bytes;
+
 /// 16 pointers into the column heap, in bank 5.
 const COLUMN_DIRECTORY: usize = 0x19d1f;
 const BANK5: usize = 0x14010 - 0x8000;
@@ -31,7 +33,7 @@ pub struct Screen {
 /// A column id's high nibble picks a directory entry; from there the low
 /// nibble counts bytes with bit 7 set. Each byte is a square in bits 0-5,
 /// which bit 6 repeats once.
-fn column(rom: &[u8], id: u8) -> [u8; 11] {
+fn column(rom: Bytes<'_>, id: u8) -> [u8; 11] {
     let d = COLUMN_DIRECTORY + 2 * usize::from(id >> 4);
     let mut p = usize::from(rom[d]) + (usize::from(rom[d + 1]) << 8) + BANK5;
     let mut starts = 0;
@@ -60,7 +62,7 @@ fn column(rom: &[u8], id: u8) -> [u8; 11] {
 }
 
 /// Top left, bottom left, top right, bottom right.
-fn square_tiles(rom: &[u8], square: u8) -> [u8; 4] {
+fn square_tiles(rom: Bytes<'_>, square: u8) -> [u8; 4] {
     let s = usize::from(square);
     if s < 16 {
         return [
@@ -77,7 +79,7 @@ fn square_tiles(rom: &[u8], square: u8) -> [u8; 4] {
     [first, first + 1, first + 2, first + 3]
 }
 
-pub fn decode_screen(rom: &[u8], screen: usize) -> Screen {
+pub fn decode_screen(rom: Bytes<'_>, screen: usize) -> Screen {
     let layout = usize::from(rom[TABLE3 + screen] & 0x7f);
     let mut s = Screen {
         tiles: [[0; 32]; 22],
