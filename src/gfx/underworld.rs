@@ -73,9 +73,14 @@ fn level_block(level: usize) -> usize {
 fn column(rom: Bytes<'_>, id: u8) -> [u8; 7] {
     let d = COLUMN_DIRECTORY + 2 * usize::from(id >> 4);
     let mut p = usize::from(rom[d]) + (usize::from(rom[d + 1]) << 8) + BANK5;
+    // A ROM without the column's start marks reads as empty columns, not
+    // past its end.
     let mut starts = 0;
     loop {
-        if rom[p] & 0x80 != 0 {
+        let Some(&b) = rom.get(p) else {
+            return [0; 7];
+        };
+        if b & 0x80 != 0 {
             if starts == id & 15 {
                 break;
             }
@@ -86,7 +91,9 @@ fn column(rom: Bytes<'_>, id: u8) -> [u8; 7] {
     let mut squares = [0; 7];
     let mut n = 0;
     while n < 7 {
-        let b = rom[p];
+        let Some(&b) = rom.get(p) else {
+            break;
+        };
         p += 1;
         for _ in 0..=((b >> 4) & 7) {
             if n < 7 {
@@ -879,6 +886,16 @@ const MONSTERS: [Monster; 0x62] = [
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_rom_without_column_marks_reads_no_further_than_its_end() {
+        let mut data = vec![0; crate::rom::FILE_LEN];
+        data[..4].copy_from_slice(b"NES\x1a");
+        let rom = Bytes::new(&data).unwrap();
+        for id in 0..=255 {
+            assert_eq!(column(rom, id), [0; 7]);
+        }
+    }
 
     #[test]
     fn mirrored_wall_tiles_follow_the_game() {
