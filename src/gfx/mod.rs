@@ -4,14 +4,12 @@
 //! were measured, in `docs/rom-graphics.md`.
 
 mod overworld;
-pub mod pictures;
 mod png;
 pub mod underworld;
 
 use crate::rom::Bytes;
 
 pub use overworld::{Screen, decode_screen};
-pub use pictures::picture;
 
 /// NES colors, as most emulators show them.
 pub const NES: [u32; 64] = [
@@ -25,8 +23,9 @@ pub const NES: [u32; 64] = [
     0x000000,
 ];
 
-/// Overworld background palettes, four of four NES colors.
-const BACKGROUND_PALETTES: usize = 0x19313;
+/// Overworld background palettes, four of four NES colors: the start of
+/// the overworld's block.
+const BACKGROUND_PALETTES: usize = crate::level::BLOCKS;
 /// Overworld sprite palettes; 0 is Link's, 1 blue and white, 2 red and white.
 const SPRITE_PALETTES: usize = 0x19323;
 

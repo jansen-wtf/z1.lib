@@ -5,6 +5,7 @@
 
 use super::{Image, NES, tile_pixel};
 use crate::rom::Bytes;
+use crate::{level, tables};
 
 /// 10 pointers into the column heap, in bank 5.
 const COLUMN_DIRECTORY: usize = 0x16714;
@@ -23,12 +24,11 @@ const DOORS_EAST: usize = 0x15ffe;
 const DOORS_WEST: usize = 0x1603a;
 const DOORS_SOUTH: usize = 0x16076;
 const DOORS_NORTH: usize = 0x160b2;
-/// The room tables A-F, 0x80 bytes each, per level group and quest.
-pub const GRID: usize = 0x18710;
-/// Level blocks: palettes (background, then sprites), monster counts at
-/// 0x21, item positions at 0x26.
-const LEVEL_BLOCKS: usize = 0x19313;
-const LEVEL_BLOCK_SIZE: usize = 0xfc;
+const GRID: usize = tables::LEVELS;
+/// In a level block: palettes (background, then sprites), monster counts
+/// at 0x21, item positions at 0x26.
+const LEVEL_BLOCKS: usize = level::BLOCKS;
+const LEVEL_BLOCK_SIZE: usize = level::BLOCK_LEN;
 /// Per level, bank 3 pointers to the sprites loaded at tile 0x9E
 /// (monsters) and 0xC0 (bosses).
 const MONSTER_SPRITES: usize = 0xc010;

@@ -2,6 +2,7 @@
 //! of 11 squares, each square 2 x 2 tiles.
 
 use crate::rom::Bytes;
+use crate::tables;
 
 /// 16 pointers into the column heap, in bank 5.
 const COLUMN_DIRECTORY: usize = 0x19d1f;
@@ -9,11 +10,11 @@ const BANK5: usize = 0x14010 - 0x8000;
 /// 16 column ids per screen layout.
 const LAYOUTS: usize = 0x15428;
 /// Low two bits: palette of the outer two squares.
-const TABLE0: usize = 0x18410;
+const TABLE0: usize = tables::OVERWORLD + tables::A;
 /// Low two bits: palette inside.
-const TABLE1: usize = 0x18490;
+const TABLE1: usize = tables::OVERWORLD + tables::B;
 /// Low seven bits: screen layout.
-const TABLE3: usize = 0x18590;
+const TABLE3: usize = tables::OVERWORLD + tables::D;
 /// First tile of each square.
 const PRIMARY: usize = 0x1698c;
 /// First tile for primary values E5-EA.

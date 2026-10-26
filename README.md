@@ -19,9 +19,17 @@
 
 | Module | What |
 |---|---|
+| `z1::rom` | the ROM: `Bytes` for any Zelda ROM, the two US releases (PRG0, Rev 1) by SHA-1, the word before a level's digit (`LEVEL-`, `BOARD-`, …) |
+| `z1::tables` | the six room tables of the overworld and of the levels, in the ROM or copied to RAM: a room's item, layout, doors and staircases, a screen's cave and what it offers |
+| `z1::level` | level blocks, start rooms, the shape on a level's map, the rooms that belong to a level, and what lies in them |
+| `z1::overworld` | caves per screen, the coast and the armos statues, the screens that hide something, the heart containers |
+| `z1::item` | item ids |
 | `z1::gfx` | pictures from the ROM: overworld screens, dungeon rooms with walls, doors, items and monsters, Link, hearts, text in the game's font, PNG output |
-| `z1::rom` | the ROM's layout: size, header, the two US releases (PRG0, Rev 1) by SHA-1, the word before a level's digit (`LEVEL-`, `BOARD-`, …) |
 | `z1::flags` | the Zelda Randomizer's flag string: all 27 drop-down lists and 94 check boxes, read and written |
+| `z1::z1r` | what the Zelda Randomizer's changes to the code mean: what opens level 9, the starting inventory, the book as an atlas |
+
+What the game keeps is told apart from what a program makes of it: the
+library says where things are, not what a player may see.
 
 All offsets are file offsets including the 16-byte iNES header.
 [docs/rom-graphics.md](docs/rom-graphics.md) says where the game keeps what
@@ -33,7 +41,7 @@ Add it to `Cargo.toml`, pinned to a tag:
 
 ```toml
 [dependencies]
-z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "0.10.0" }
+z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "0.11.0" }
 ```
 
 Draw an overworld screen from a ROM, original or randomized:
@@ -41,8 +49,22 @@ Draw an overworld screen from a ROM, original or randomized:
 ```rust
 let data = std::fs::read("zelda.nes")?;
 let rom = z1::rom::Bytes::new(&data)?;
-let screen = z1::gfx::picture(rom, "screen:119").unwrap();
+let mut screen = z1::gfx::Image::new(256, 176, 0);
+z1::gfx::paint_screen(rom, 119, &mut screen, 0, 0);
 std::fs::write("screen.png", screen.to_png())?;
+```
+
+List what lies in level 1 of the first quest:
+
+```rust
+use z1::level;
+
+let tables = level::tables(rom, 1, false);
+let rooms = level::rooms(tables, level::block(rom, 1), &Default::default());
+for placed in level::items(tables, &rooms) {
+    println!("item {} in room {:#04x}{}", placed.item, placed.room,
+        if placed.stairs { ", down the stairs" } else { "" });
+}
 ```
 
 Read a randomizer seed's flags:
