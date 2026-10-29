@@ -35,13 +35,16 @@ file is the map and the rules for changing it.
 | `src/rom.rs` | `Bytes` (checked view of any Zelda ROM), `Rom` (an unmodified one, by SHA-1, with its `Revision`), the level word |
 | `src/tables.rs` | the six room tables A-F, in the ROM or copied to battery RAM |
 | `src/level.rs` | level blocks, start rooms, map shape, the rooms of a level, what lies in them |
-| `src/overworld.rs` | caves per screen, coast, armos, secrets, heart containers |
-| `src/item.rs` | item ids |
-| `src/z1r.rs` | the randomizer's code changes: level 9 gate, start inventory, book as atlas |
+| `src/overworld.rs` | caves per screen and their kinds, coast, armos, secrets, heart containers, sword hearts, screen names, mirroring |
+| `src/item.rs` | item ids and names |
+| `src/text.rs` | the font as tiles and characters, the text table, cave and old men's texts |
+| `src/ram.rs` | the running game's RAM, as measured ([docs/ram.md](docs/ram.md)) |
+| `src/z1r.rs` | the randomizer's code changes: level 9 gate, start inventory, book as atlas; item places per level the flags fix |
 | `src/flags.rs` | the flag string: base-63 codec, `combo` (27 lists) and `check` (94 boxes) indexes with the form's captions |
 | `src/gfx/` | pictures: `mod.rs` (palettes, font, items, Link, hearts), `overworld.rs` (screens), `underworld.rs` (rooms, doors, monsters), `png.rs` |
 | `docs/rom-layout.md` | where the tables, levels and overworld lie, and what the randomizer's changes and flags mean |
 | `docs/rom-graphics.md` | where the graphics lie, and how each was measured |
+| `docs/ram.md` | where the running game keeps its state, and how each address was measured |
 
 All offsets are file offsets including the 16-byte iNES header.
 

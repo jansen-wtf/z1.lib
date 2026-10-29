@@ -34,7 +34,7 @@
   <tr>
     <td valign="top" width="33%">
       <p align="center"><b>Read the ROM</b></p>
-      <ul><li>Room tables of overworld and levels</li><li>Caves, coast, armos, secrets</li><li>What lies in each level</li><li>Level 9 gate, start items</li></ul>
+      <ul><li>Room tables of overworld and levels</li><li>Caves, coast, armos, secrets</li><li>What lies in each level</li><li>Texts, and the game's RAM</li></ul>
     </td>
     <td valign="top" width="33%">
       <p align="center"><b>Draw from it</b></p>
@@ -42,7 +42,7 @@
     </td>
     <td valign="top" width="33%">
       <p align="center"><b>Speak Z1R</b></p>
-      <ul><li>The flag string, read and written</li><li>27 lists, 94 check boxes</li><li>The randomizer's code changes</li><li>Captions as the form shows them</li></ul>
+      <ul><li>The flag string, read and written</li><li>27 lists, 94 check boxes</li><li>The randomizer's code changes</li><li>Item places the flags fix</li></ul>
     </td>
   </tr>
 </table>
@@ -82,11 +82,13 @@
 | `z1::rom` | the ROM: `Bytes` for any Zelda ROM, the two US releases (PRG0, Rev 1) by SHA-1, the word before a level's digit (`LEVEL-`, `BOARD-`, …) |
 | `z1::tables` | the six room tables of the overworld and of the levels, in the ROM or copied to RAM: a room's item, layout, doors and staircases, a screen's cave and what it offers |
 | `z1::level` | level blocks, start rooms, the shape on a level's map, the rooms that belong to a level, and what lies in them |
-| `z1::overworld` | caves per screen, the coast and the armos statues, the screens that hide something, the heart containers |
-| `z1::item` | item ids |
+| `z1::overworld` | caves per screen and their kinds, the coast and the armos statues, the screens that hide something, the heart containers, the sword caves' hearts, screen names, mirroring |
+| `z1::item` | item ids and their names |
 | `z1::gfx` | pictures from the ROM: overworld screens, dungeon rooms with walls, doors, items and monsters, Link, hearts, text in the game's font, PNG output |
 | `z1::flags` | the Zelda Randomizer's flag string: all 27 drop-down lists and 94 check boxes, read and written |
-| `z1::z1r` | what the Zelda Randomizer's changes to the code mean: what opens level 9, the starting inventory, the book as an atlas |
+| `z1::text` | the game's font as tiles and characters, the text table, what caves and old men say |
+| `z1::ram` | the running game's state in RAM, every address measured: level, mode, screen, inventory, flags, the player's name |
+| `z1::z1r` | what the Zelda Randomizer's changes to the code mean: what opens level 9, the starting inventory, the book as an atlas; how many item places the flags fix per level |
 
 - **Where things are, not what to show:** the library tells apart what the
   game keeps from what a program makes of it.
@@ -95,6 +97,8 @@
   tables, levels and overworld, what z1r's changes and flags mean.
 - **[docs/rom-graphics.md](docs/rom-graphics.md):** where it keeps what it
   draws, and how that was measured.
+- **[docs/ram.md](docs/ram.md):** where the running game keeps its state,
+  and how each address was measured.
 
 ## Examples
 

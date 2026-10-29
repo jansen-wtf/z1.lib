@@ -50,9 +50,57 @@ tests check that when `Z1R_ROM` names one.
 | `0x10CC2` | the screens of the armos statues that hide stairs, the item's first |
 | `0x10CC9` | their x positions |
 | `0x10D05` | the armos item |
+| `0x490D` | the hearts the white sword cave asks for, as `(hearts - 1) * 16`: `40` (5) in the original |
+| `0x4916` | the same for the magical sword cave: `B0` (12) |
 
-On the second quest's overworld, screens 11 and 66 have no cave, though
-the tables list one.
+- On the second quest's overworld, screens 11 and 66 have no cave, though
+  the tables list one. Mirrored, those are screens 4 and 77.
+- Mirroring is the only change that writes `0x178AA` (`xor 15`), so `50`
+  there tells a mirrored overworld (`overworld::is_mirrored`); checked on
+  mirrored and plain z1r seeds of both quests.
+
+Cave ids (table B, bits 2-7; `overworld::cave_kind`):
+
+| Id | Cave | Id | Cave |
+|---|---|---|---|
+| 1-9 | level entrance | 23 | door repair |
+| 16 | wood sword | 24 | letter |
+| 17 | take any one | 26 | potion shop |
+| 18 | white sword | 27, 28 | pay for a hint (waterfall, lost woods) |
+| 19 | magical sword | 29-32 | shops 1-4 |
+| 20 | take any road (warp) | 33-35 | secret rupees |
+| 21, 25 | hint | 22 | money making game |
+
+## Text
+
+| Offset | Contents |
+|---|---|
+| `0x4010` | the text table: 64 pointers, two bytes each, little-endian; a pointer minus `0x3FF0` is the text's file offset |
+| `0x45B2` | per cave from 16 on, twice the number of the text its person says, in bits 0-5 |
+| `0x494B` | the pay-to-talk caves' texts per price, twice the number each: cave 27 the first three, cave 28 the next three |
+| `0x4A17` | per level, two bytes; the first is the low byte of the code picking the old men's texts: `23` uses the table at `0x4A2B`, `69` at `0x4A71`, `84` at `0x4A90`, eight entries for room kinds 11-18 |
+
+- A text is font tiles, one byte each: the tile in bits 0-5, bit 7 ending
+  the first line, bit 6 the second, both the text (`text::decode`).
+- Tiles: 0-9 digits, 10-35 letters, 36 and 37 blanks, 40-47 `,!'&."?-`.
+- Checked on both releases: the wood sword cave says "IT'S DANGEROUS TO
+  GO / ALONE! TAKE THIS.", an old man of level 1 tells of the eastmost
+  peninsula.
+
+## What the flags fix: item places
+
+How many heart containers and collected items (`z1r::PLACED_ITEMS`) each
+level holds on its floor and down its staircases follows from the flags
+alone (`z1r::item_places`), measured with z1r.rs over 12 seeds of every
+combination of dungeon quest, room shuffle, item shuffle and minor drops:
+
+| Level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|
+| First quest and shapes: floor / stairs | 2 / 1 | 2 / 0 | 1 / 1 | 1 / 1 | 1 / 1 | 1 / 1 | 1 / 1 | 1 / 2 | 0 / 2 |
+| Second quest | 2 / 0 | 2 / 0 | 1 / 1 | 1 / 1 | 1 / 2 | 1 / 1 | 1 / 2 | 1 / 1 | 0 / 2 |
+
+Mixed quests, and minor drops joining an item shuffle, leave the numbers
+to the seed.
 
 ## The Zelda Randomizer's changes
 
