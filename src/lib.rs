@@ -11,6 +11,7 @@ pub mod gfx;
 pub mod item;
 pub mod level;
 pub mod overworld;
+pub mod ram;
 pub mod rom;
 pub mod tables;
 pub mod text;
