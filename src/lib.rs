@@ -13,6 +13,7 @@ pub mod level;
 pub mod overworld;
 pub mod rom;
 pub mod tables;
+pub mod text;
 pub mod z1r;
 
 /// The README's examples, compiled by `cargo test`.
