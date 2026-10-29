@@ -67,7 +67,7 @@
 
    ```toml
    [dependencies]
-   z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "1.1.0" }
+   z1 = { git = "https://github.com/jansen-wtf/z1.lib", tag = "1.2.0" }
    ```
 
 2. **Check the ROM once:** `z1::rom::Bytes::new(&data)` takes any Zelda
