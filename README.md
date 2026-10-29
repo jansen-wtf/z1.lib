@@ -112,6 +112,8 @@ cargo clippy --all-targets
 
 Every public item has its documentation (`cargo doc --open`); a missing one
 fails the CI.
+[AGENTS.md](AGENTS.md) maps the code and its rules for anyone changing it,
+coding agents included.
 
 ## Used by
 
