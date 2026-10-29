@@ -1,6 +1,8 @@
 //! What the Zelda Randomizer's changes to the code mean: what opens level
-//! 9, what Link starts with, whether the book is an atlas.
+//! 9, what Link starts with, whether the book is an atlas; and what its
+//! flags fix for every seed: how many item places each level has.
 
+use crate::flags::{Check, Flags, check, combo};
 use crate::rom::Bytes;
 
 /// Level 9's gate: `LDA $0671; CMP #$FF` in the original.
@@ -78,9 +80,82 @@ pub fn book_is_atlas(rom: Bytes<'_>) -> bool {
     rom[BOOK_ATLAS..BOOK_ATLAS + 3] == [0x4c, 0xa0, 0xb8]
 }
 
+/// Items with a place counted by `item_places`: heart containers and the
+/// items a player collects, from the wood sword to the magical boomerang;
+/// keys, maps, compasses, rupees, bombs and the like are not.
+pub const PLACED_ITEMS: [u8; 22] = [
+    1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 26, 28, 29, 30,
+];
+
+/// Places on the floor and down staircases, levels 1-9, for the first quest
+/// and shapes.
+const FIRST_QUEST_PLACES: [(u8, u8); 9] = [
+    (2, 1),
+    (2, 0),
+    (1, 1),
+    (1, 1),
+    (1, 1),
+    (1, 1),
+    (1, 1),
+    (1, 2),
+    (0, 2),
+];
+/// The same for the second quest.
+const SECOND_QUEST_PLACES: [(u8, u8); 9] = [
+    (2, 0),
+    (2, 0),
+    (1, 1),
+    (1, 1),
+    (1, 2),
+    (1, 1),
+    (1, 2),
+    (1, 1),
+    (0, 2),
+];
+
+/// How many `PLACED_ITEMS` each level 1-9 holds on its floor and down its
+/// staircases, where `flags` fix it for every seed: dungeon quest first or
+/// second quest or shapes (shapes as the first quest), whatever the room
+/// and item shuffle, unless minor drops join an item shuffle. `None` where
+/// the seed decides: mixed quests, minor drops in an item shuffle.
+///
+/// Measured with the Zelda Randomizer's generator (z1r.rs): 12 seeds of
+/// every combination of dungeon quest, room shuffle, item shuffle and minor
+/// drops, counting the items in each level's rooms of the finished ROM.
+pub fn item_places(flags: &Flags) -> Option<[(u8, u8); 9]> {
+    let places = match flags.combo(combo::DUNGEON_QUEST) {
+        0 | 3 => FIRST_QUEST_PLACES,
+        1 => SECOND_QUEST_PLACES,
+        _ => return None,
+    };
+    let fixed = flags.check(check::MINOR_DUNGEON_DROPS) == Check::Off
+        || flags.combo(combo::SHUFFLE_ITEMS) == 0;
+    fixed.then_some(places)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_flags_fix_the_item_places_unless_minor_drops_join_a_shuffle() {
+        let places = |dungeons, minor, items| {
+            let mut f = Flags::default();
+            f.set_combo(combo::DUNGEON_QUEST, dungeons);
+            f.set_check(check::MINOR_DUNGEON_DROPS, minor);
+            f.set_combo(combo::SHUFFLE_ITEMS, items);
+            item_places(&f).map(|p| p[0])
+        };
+        assert_eq!(places(0, Check::Off, 3), Some((2, 1)));
+        assert_eq!(places(3, Check::Off, 3), Some((2, 1)));
+        assert_eq!(places(1, Check::Off, 3), Some((2, 0)));
+        assert_eq!(places(3, Check::On, 0), Some((2, 1)));
+        assert_eq!(places(2, Check::Off, 0), None);
+        assert_eq!(places(3, Check::On, 1), None);
+        // The 2026 Fall Tournament's flags: shapes, full room shuffle.
+        let fall = Flags::parse("SQ8gqsY5mwtBby7Zo3Mu5TQQ1XhJWDIOUGvInVj");
+        assert_eq!(item_places(&fall), Some(FIRST_QUEST_PLACES));
+    }
 
     /// Needs the original ROM in Z1R_ROM.
     #[test]
