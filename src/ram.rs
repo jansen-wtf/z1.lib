@@ -22,6 +22,9 @@ pub const LEVEL_BLOCK: usize = 0x6b81;
 pub const LEVEL: usize = 0x10;
 /// The game mode; see the `MODE_*` values.
 pub const MODE: usize = 0x12;
+/// The step within the game mode: in a cave 0 while it is laid out, 1
+/// from then on.
+pub const SUBMODE: usize = 0x11;
 /// One up per frame, the pause screen included; wraps at 256.
 pub const FRAMES: usize = 0x15;
 /// The save slot being played, 0-2.
@@ -33,6 +36,9 @@ pub const SCREEN_ITEM: usize = 0xab;
 /// nibble); in a cave the overworld screen, down a staircase the room under
 /// the level, whose tables A and B name the rooms at both ends.
 pub const SCREEN: usize = 0xeb;
+/// In a cave, 1, 2 and 3 while it fades in, 0 once its people and items
+/// show.
+pub const CAVE_FADE: usize = 0x407;
 /// The three save slots' names, 8 font tiles each, padded with 36.
 pub const NAMES: usize = 0x638;
 
@@ -134,6 +140,14 @@ pub const MODE_DYING: u8 = 0x11;
 /// Mode from reaching Zelda through the credits.
 pub const MODE_ENDING: u8 = 0x13;
 
+/// Whether Link stands in a cave whose people and items show on the
+/// screen, from work RAM read from `$0000`: in the cave's mode, laid out
+/// and faded in. Before that the room tables already name what lies there.
+/// False when `wram` is shorter than `WRAM_LEN`.
+pub fn cave_shown(wram: &[u8]) -> bool {
+    wram.len() >= WRAM_LEN && wram[MODE] == MODE_CAVE && wram[SUBMODE] != 0 && wram[CAVE_FADE] == 0
+}
+
 /// The room flags of `level`: levels 1-6 share one set, 7-9 the other.
 /// `None` for the overworld and levels past 9.
 pub fn room_flags(level: u8) -> Option<usize> {
@@ -179,6 +193,21 @@ mod tests {
         wram[SLOT] = 3;
         assert_eq!(player_name(&wram), None);
         assert_eq!(player_name(&wram[..10]), None);
+    }
+
+    #[test]
+    fn a_cave_shows_once_laid_out_and_faded_in() {
+        let mut wram = vec![0; WRAM_LEN];
+        wram[MODE] = MODE_CAVE;
+        wram[CAVE_FADE] = 1;
+        assert!(!cave_shown(&wram));
+        wram[SUBMODE] = 1;
+        assert!(!cave_shown(&wram));
+        wram[CAVE_FADE] = 0;
+        assert!(cave_shown(&wram));
+        wram[MODE] = MODE_PLAY;
+        assert!(!cave_shown(&wram));
+        assert!(!cave_shown(&wram[..10]));
     }
 
     #[test]

@@ -88,7 +88,7 @@
 | `z1::flags` | the Zelda Randomizer's flag string: all 27 drop-down lists and 94 check boxes, read and written |
 | `z1::code` | z1r.rs's string of a whole game (`z1r1p…`): flags, seed and what z1r.rs adds, as Bech32m with a checksum |
 | `z1::text` | the game's font as tiles and characters, the text table, what caves and old men say |
-| `z1::ram` | the running game's state in RAM, every address measured: level, mode, screen, inventory, flags, the player's name |
+| `z1::ram` | the running game's state in RAM, every address measured: level, mode, screen, inventory, flags, the player's name, whether a cave shows yet |
 | `z1::z1r` | what the Zelda Randomizer's changes to the code mean: what opens level 9, the starting inventory, the book as an atlas; how many item places the flags fix per level |
 
 - **Where things are, not what to show:** the library tells apart what the

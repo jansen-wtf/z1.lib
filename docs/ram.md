@@ -20,6 +20,8 @@ are left out of every comparison.
 | inventory | each item id put in the wood sword cave's middle slot and taken (`items`) |
 | dungeon items, room flags | an item put in a level's start room and taken; walls bombed; cellar items taken with and without holding them (`dungeon`, `bomb`, `cellar`) |
 | room tables, level block | where the six tables and the block appear in battery RAM (`tables`) |
+| a cave showing | each cave kind entered, frame by frame, against the frame its items appear in the sprites (`cavefade`) |
+| start screen | the level block's start room on the start screen (`cavefade`) |
 | save slot, names | two files registered with different names, each started (`name`) |
 
 ## Where Link is
@@ -27,10 +29,13 @@ are left out of every comparison.
 | Address | Contents |
 |---|---|
 | `$0010` | level, 0 = overworld |
+| `$0011` | the step within the game mode: in a cave 0 while it is laid out, then 1 |
 | `$0012` | game mode, below |
 | `$0015` | frame counter, one up per frame, pause screen included, wrapping at 256 |
 | `$00AB` | the item lying on the overworld screen: the coast item on every screen, the armos item once that statue moved |
 | `$00EB` | overworld screen or room; in a cave the overworld screen; down a staircase the room under the level |
+| `$0407` | in a cave, 1, 2, 3 while it fades in, 0 once it shows |
+| `$6BAD` | the level block's start room; on the overworld the screen Link starts on |
 
 ## Game modes (`$0012`)
 
