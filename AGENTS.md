@@ -40,6 +40,7 @@ file is the map and the rules for changing it.
 | `src/text.rs` | the font as tiles and characters, the text table, cave and old men's texts |
 | `src/ram.rs` | the running game's RAM, as measured ([docs/ram.md](docs/ram.md)) |
 | `src/z1r.rs` | the randomizer's code changes: level 9 gate, start inventory, book as atlas; item places per level the flags fix |
+| `src/code.rs` | z1r.rs's string of a whole game: flags, seed and z1r.rs's additions as Bech32m (`code/bech32m.rs`); its field numbers are permanent |
 | `src/flags.rs` | the flag string: base-63 codec, `combo` (27 lists) and `check` (94 boxes) indexes with the form's captions |
 | `src/gfx/` | pictures: `mod.rs` (palettes, font, items, Link, hearts), `overworld.rs` (screens), `underworld.rs` (rooms, doors, monsters), `png.rs` |
 | `docs/rom-layout.md` | where the tables, levels and overworld lie, and what the randomizer's changes and flags mean |

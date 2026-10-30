@@ -86,6 +86,7 @@
 | `z1::item` | item ids and their names |
 | `z1::gfx` | pictures from the ROM: overworld screens, dungeon rooms with walls, doors, items and monsters, Link, hearts, text in the game's font, PNG output |
 | `z1::flags` | the Zelda Randomizer's flag string: all 27 drop-down lists and 94 check boxes, read and written |
+| `z1::code` | z1r.rs's string of a whole game (`z1r1p…`): flags, seed and what z1r.rs adds, as Bech32m with a checksum |
 | `z1::text` | the game's font as tiles and characters, the text table, what caves and old men say |
 | `z1::ram` | the running game's state in RAM, every address measured: level, mode, screen, inventory, flags, the player's name |
 | `z1::z1r` | what the Zelda Randomizer's changes to the code mean: what opens level 9, the starting inventory, the book as an atlas; how many item places the flags fix per level |
@@ -142,6 +143,21 @@ let flags = Flags::parse("11fvaXsSNVMgaizTfEEM6gt!QwVfNfjfELUj7RA");
 let second_quest = flags.combo(combo::QUEST_NUMBER) == 1;
 let race_rom = flags.check(check::TOURNEY_MODE) == Check::On;
 assert!(second_quest && !race_rom);
+```
+
+Read the flags from a z1r.rs string, as z1r.rs names its files:
+
+```rust
+use z1::code::Code;
+
+let code = Code {
+    flags: "11fvaXsSNVMgaizTfEEM6gt!QwVfNfjfELUj7RA".into(),
+    seed: Some(42),
+    ..Code::default()
+};
+let text = code.to_string();
+assert!(text.starts_with("z1r1p"));
+assert_eq!(text.parse::<Code>().unwrap().flags, code.flags);
 ```
 
 - **`z1::rom::Bytes`** is what every reader takes: any Zelda ROM, checked
