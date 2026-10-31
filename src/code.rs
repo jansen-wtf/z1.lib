@@ -4,40 +4,19 @@
 //! file name.
 //!
 //! After the version, the data is a list of fields, each a permanent number,
-//! a length and a value, both numbers as LEB128. Only fields that are set
-//! are written. A number is never reused for another meaning; a field this
-//! version does not know means a newer z1r.rs made the string, and it is
-//! refused rather than read as a different game.
+//! a length and a value, both numbers as LEB128. Field 0 is the flag string,
+//! field 1 the seed; what the fields from 2 on mean is z1r.rs's to say, and
+//! this module hands them over as they are. A number is never reused for
+//! another meaning, so a program that does not know a field knows the
+//! string is from a newer z1r.rs.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
 pub mod bech32m;
 
 use bech32m::Bech32Error;
-
-/// How many color sets a level can take.
-pub const LEVEL_COLORS: usize = 24;
-
-/// What z1r.rs adds to the Zelda Randomizer's game. The default adds
-/// nothing.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Extensions {
-    /// Hearts the white sword cave asks for, 1-16.
-    pub white_sword_hearts: Option<u8>,
-    /// Hearts the magical sword cave asks for, 1-16.
-    pub magical_sword_hearts: Option<u8>,
-    /// Levels 1-9: the color set each one takes, below `LEVEL_COLORS`.
-    pub level_colors: [Option<u8>; 9],
-}
-
-impl Extensions {
-    /// Whether anything is set, which makes the game one the Zelda
-    /// Randomizer cannot make.
-    pub fn any(&self) -> bool {
-        *self != Extensions::default()
-    }
-}
 
 /// What a z1r.rs string starts with, before the separator.
 pub const KIND: &str = "z1r";
@@ -48,11 +27,8 @@ pub const VERSION: u8 = 1;
 const FLAGS: u64 = 0;
 /// The seed number.
 const SEED: u64 = 1;
-const WHITE_SWORD_HEARTS: u64 = 2;
-const MAGICAL_SWORD_HEARTS: u64 = 3;
-/// Nine bytes, levels 1-9: a color set, or `NO_COLOR`.
-const LEVEL_COLOR_SETS: u64 = 4;
-const NO_COLOR: u8 = 0xff;
+/// The first number of a field z1r.rs gives its meaning.
+pub const FIRST_FIELD: u64 = 2;
 
 /// The flag string's 63 characters, as the Zelda Randomizer numbers them.
 const FLAG_ALPHABET: &[u8; 63] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!";
@@ -65,8 +41,9 @@ pub struct Code {
     pub flags: String,
     /// The seed number, when the string names one.
     pub seed: Option<u64>,
-    /// What z1r.rs adds.
-    pub extensions: Extensions,
+    /// What z1r.rs adds: values by field number, from `FIRST_FIELD` on.
+    /// Numbers below it are not written.
+    pub fields: BTreeMap<u64, Vec<u8>>,
 }
 
 /// Why a string is no z1r.rs string this version can read.
@@ -76,11 +53,9 @@ pub enum CodeError {
     Bech32(Bech32Error),
     /// Another kind of Bech32m string, such as an address.
     Kind(String),
-    /// A newer format than this z1r.rs reads.
+    /// A newer format than this module reads.
     Version(u8),
-    /// A field of a newer z1r.rs.
-    Field(u64),
-    /// A field whose value cannot be.
+    /// The flag string or the seed cannot be.
     Value(&'static str),
     /// The data ends inside a field.
     Truncated,
@@ -95,7 +70,6 @@ impl fmt::Display for CodeError {
                 f,
                 "format {v}, made by a newer z1r.rs; this one reads format {VERSION}"
             ),
-            CodeError::Field(n) => write!(f, "setting {n} is from a newer z1r.rs"),
             CodeError::Value(what) => write!(f, "the {what} cannot be"),
             CodeError::Truncated => write!(f, "the string ends inside a setting"),
         }
@@ -175,13 +149,6 @@ fn unpack_flags(mut value: &[u8]) -> Result<String, CodeError> {
     Ok(out)
 }
 
-fn hearts(value: &[u8], what: &'static str) -> Result<u8, CodeError> {
-    match value {
-        [h @ 1..=16] => Ok(*h),
-        _ => Err(CodeError::Value(what)),
-    }
-}
-
 impl fmt::Display for Code {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut data = Vec::new();
@@ -195,20 +162,8 @@ impl fmt::Display for Code {
             put_number(&mut v, seed);
             put_field(&mut data, SEED, &v);
         }
-        let e = &self.extensions;
-        if let Some(h) = e.white_sword_hearts {
-            put_field(&mut data, WHITE_SWORD_HEARTS, &[h]);
-        }
-        if let Some(h) = e.magical_sword_hearts {
-            put_field(&mut data, MAGICAL_SWORD_HEARTS, &[h]);
-        }
-        if e.level_colors.iter().any(Option::is_some) {
-            let sets: Vec<u8> = e
-                .level_colors
-                .iter()
-                .map(|c| c.unwrap_or(NO_COLOR))
-                .collect();
-            put_field(&mut data, LEVEL_COLOR_SETS, &sets);
+        for (&number, value) in self.fields.range(FIRST_FIELD..) {
+            put_field(&mut data, number, value);
         }
         let mut groups = vec![VERSION];
         groups.extend(bech32m::to_five_bits(&data));
@@ -245,27 +200,17 @@ impl FromStr for Code {
                     code.flags = unpack_flags(value)?;
                     has_flags = true;
                 }
-                SEED => code.seed = Some(take_number(&mut &value[..])?),
-                WHITE_SWORD_HEARTS => {
-                    code.extensions.white_sword_hearts = Some(hearts(value, "white sword hearts")?)
-                }
-                MAGICAL_SWORD_HEARTS => {
-                    code.extensions.magical_sword_hearts =
-                        Some(hearts(value, "magical sword hearts")?)
-                }
-                LEVEL_COLOR_SETS => {
-                    let sets: [u8; 9] = value
-                        .try_into()
-                        .map_err(|_| CodeError::Value("level colors"))?;
-                    for (slot, &set) in code.extensions.level_colors.iter_mut().zip(&sets) {
-                        *slot = match set {
-                            NO_COLOR => None,
-                            s if usize::from(s) < LEVEL_COLORS => Some(s),
-                            _ => return Err(CodeError::Value("level colors")),
-                        };
+                SEED => {
+                    let mut v = value;
+                    let seed = take_number(&mut v)?;
+                    if !v.is_empty() {
+                        return Err(CodeError::Value("seed"));
                     }
+                    code.seed = Some(seed);
                 }
-                n => return Err(CodeError::Field(n)),
+                n => {
+                    code.fields.insert(n, value.to_vec());
+                }
             }
         }
         if !has_flags {
@@ -283,21 +228,7 @@ mod tests {
         Code {
             flags: "1zuh3gHaClLJcHHNapqQB1pT23b50Y1NhXkgO863".into(),
             seed: Some(2447833244173793317),
-            extensions: Extensions {
-                white_sword_hearts: Some(7),
-                magical_sword_hearts: Some(16),
-                level_colors: [
-                    Some(9),
-                    None,
-                    None,
-                    Some(22),
-                    None,
-                    None,
-                    None,
-                    None,
-                    Some(0),
-                ],
-            },
+            fields: BTreeMap::from([(2, vec![7]), (3, vec![16]), (4, vec![9, 0xff, 22])]),
         }
     }
 
@@ -312,6 +243,22 @@ mod tests {
             ..Code::default()
         };
         assert_eq!(plain.to_string().parse::<Code>(), Ok(plain));
+    }
+
+    #[test]
+    fn a_string_of_z1r_rs_1_0_reads_the_same() {
+        let code: Code = "z1r1pqqyqjg4av9lcpp9gqyqswqspqgzqj9lllllllllllllsf5j2hr"
+            .parse()
+            .unwrap();
+        assert_eq!(code.flags, "8hrXVu24g");
+        assert_eq!(code.seed, Some(7));
+        let mut colors = vec![0xff; 9];
+        colors[0] = 23;
+        assert_eq!(code.fields, BTreeMap::from([(2, vec![2]), (4, colors)]));
+        assert_eq!(
+            code.to_string(),
+            "z1r1pqqyqjg4av9lcpp9gqyqswqspqgzqj9lllllllllllllsf5j2hr"
+        );
     }
 
     #[test]
@@ -332,7 +279,7 @@ mod tests {
         put_field(&mut data, 99, &[1]);
         let mut groups = vec![VERSION];
         groups.extend(bech32m::to_five_bits(&data));
-        let future = bech32m::encode(KIND, &groups);
-        assert_eq!(future.parse::<Code>(), Err(CodeError::Field(99)));
+        let later = bech32m::encode(KIND, &groups);
+        assert_eq!(later.parse::<Code>().unwrap().fields[&99], [1]);
     }
 }
