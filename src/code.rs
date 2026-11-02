@@ -1,7 +1,7 @@
 //! The z1r.rs string: a whole game of z1r.rs, the Zelda Randomizer's port,
 //! in one Bech32m string, `z1r1` and the format version first. z1r.rs
-//! names its files with it, so a program can read a game's flags from the
-//! file name.
+//! writes it into the ROM of every game it makes beyond the Zelda
+//! Randomizer (`IN_ROM`), so a program can read the game's flags from it.
 //!
 //! After the version, the data is a list of fields, each a permanent number,
 //! a length and a value, both numbers as LEB128. Field 0 is the flag string,
@@ -220,6 +220,37 @@ impl FromStr for Code {
     }
 }
 
+/// Where a z1r.rs enhanced ROM keeps its own string: free space in bank 5
+/// (`$BBF0`) that the game never runs or reads, unused by the Zelda
+/// Randomizer. A tracker reads the game from the ROM, whatever the file is
+/// called.
+pub const IN_ROM: usize = 0x17c00;
+/// The room there, up to the code at `0x17F60`.
+pub const IN_ROM_LEN: usize = 0x360;
+/// What the string in the ROM starts with, then its length (two bytes,
+/// low first), then the string in ASCII.
+pub const IN_ROM_MARK: &[u8; 6] = b"Z1R.RS";
+
+impl Code {
+    /// What z1r.rs writes at `IN_ROM`; `None` when the string does not fit.
+    pub fn rom_bytes(&self) -> Option<Vec<u8>> {
+        let text = self.to_string();
+        let mut out = IN_ROM_MARK.to_vec();
+        out.extend((text.len() as u16).to_le_bytes());
+        out.extend(text.bytes());
+        (out.len() <= IN_ROM_LEN).then_some(out)
+    }
+
+    /// The game a z1r.rs enhanced ROM keeps at `IN_ROM`, if it keeps one.
+    pub fn in_rom(rom: crate::rom::Bytes<'_>) -> Option<Code> {
+        let room = &rom[IN_ROM..IN_ROM + IN_ROM_LEN];
+        let rest = room.strip_prefix(IN_ROM_MARK)?;
+        let len = usize::from(u16::from_le_bytes([rest[0], rest[1]]));
+        let text = std::str::from_utf8(rest.get(2..2 + len)?).ok()?;
+        text.parse().ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,5 +312,21 @@ mod tests {
         groups.extend(bech32m::to_five_bits(&data));
         let later = bech32m::encode(KIND, &groups);
         assert_eq!(later.parse::<Code>().unwrap().fields[&99], [1]);
+    }
+
+    #[test]
+    fn a_game_round_trips_through_its_rom() {
+        let mut rom = vec![0xff; crate::rom::FILE_LEN];
+        rom[..4].copy_from_slice(b"NES\x1a");
+        assert_eq!(Code::in_rom(crate::rom::Bytes::new(&rom).unwrap()), None);
+        let bytes = game().rom_bytes().unwrap();
+        rom[IN_ROM..IN_ROM + bytes.len()].copy_from_slice(&bytes);
+        assert_eq!(
+            Code::in_rom(crate::rom::Bytes::new(&rom).unwrap()),
+            Some(game())
+        );
+        let mut huge = game();
+        huge.fields.insert(9, vec![0; IN_ROM_LEN]);
+        assert_eq!(huge.rom_bytes(), None);
     }
 }

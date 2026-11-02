@@ -145,7 +145,8 @@ let race_rom = flags.check(check::TOURNEY_MODE) == Check::On;
 assert!(second_quest && !race_rom);
 ```
 
-Read the flags from a z1r.rs string, as z1r.rs names its files:
+Read the flags from a z1r.rs string, which a game of z1r.rs enhanced
+keeps in its ROM (`Code::in_rom`):
 
 ```rust
 use z1::code::Code;
